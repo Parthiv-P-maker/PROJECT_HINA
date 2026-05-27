@@ -81,4 +81,9 @@ def normalize_command(command):
 
         return "open " + target
 
+    elif command.startswith("my name is "):
+        name = command.replace("my name is ", "").strip()
+        return "set name " + name
+    elif command.startswith("favorite app "):
+        return command
     return command
