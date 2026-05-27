@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+hina_voice.mp3
+.env
