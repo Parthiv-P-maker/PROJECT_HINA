@@ -31,15 +31,15 @@ def _pulse_output(output_label, app):
     _fade_to_normal(output_label, app, 0)
 
 
-def _on_entry_focus(event=None):
-    """Apply focus styling when the entry receives focus."""
-    widget = getattr(event, "widget", None)
-    if widget is not None:
+def _on_entry_focus(widget):
+    try:
         widget.configure(border_color=C_SAKURA)
+    except Exception:
+        pass
 
 
-def _on_entry_blur(event=None):
-    """Restore entry styling when the entry loses focus."""
-    widget = getattr(event, "widget", None)
-    if widget is not None:
+def _on_entry_blur(widget):
+    try:
         widget.configure(border_color=C_BORDER)
+    except Exception:
+        pass

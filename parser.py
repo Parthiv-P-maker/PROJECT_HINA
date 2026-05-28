@@ -41,6 +41,15 @@ def normalize_command(command):
     elif "what can you do" in command:
         return "what can you do"
 
+    elif "what do you think" in command:
+        return "what do you think"
+
+    elif "i'm tired" in command or "im tired" in command or "i am tired" in command:
+        return "im tired"
+
+    elif "tell me something" in command or "say something" in command:
+        return "tell me something"
+
     # File / folder search
     elif "find" in command and "folder" in command:
         folder_name = (

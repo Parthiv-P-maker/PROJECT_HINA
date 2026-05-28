@@ -11,3 +11,13 @@ FILE_EXTENSIONS = [
     ".pptx", ".ppt", ".jpg", ".jpeg", ".png",
     ".mp3", ".mp4", ".csv", ".xlsx", ".exe"
 ]
+
+AMBIENT_INACTIVITY_MS = 120000
+AMBIENT_REPEAT_DELAY_MS = 300000
+AMBIENT_THOUGHTS = [
+    "You've been quiet for a while 🌸",
+    "Still focused? Hina is here if you need a break ✨",
+    "Another peaceful moment in your day...",
+    "The room feels calm. Keep going at your own pace 🌷",
+    "Need a little prompt? I'm right here if you want to chat 🌸"
+]

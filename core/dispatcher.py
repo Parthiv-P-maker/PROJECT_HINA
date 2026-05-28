@@ -146,6 +146,27 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
     if command == "what can you do":
         return DispatchResult(reply="Open apps, manage files, tell time, calculate, set timers, and more 🌸")
 
+    if command == "what do you think":
+        return DispatchResult(reply=random.choice([
+            "It feels like a good moment to keep going 🌸",
+            "I think your focus is lovely today ✨",
+            "You seem ready for something creative 🌷"
+        ]))
+
+    if command == "im tired":
+        return DispatchResult(reply=random.choice([
+            "Take a gentle break when you can 🌸",
+            "You deserve a rest after all that work ✨",
+            "A little pause can feel really nice right now 🌷"
+        ]))
+
+    if command == "tell me something":
+        return DispatchResult(reply=random.choice([
+            "Hina says: small steps still move you forward 🌸",
+            "A calm mind makes room for good ideas ✨",
+            "Sometimes quiet moments are the most powerful 🌷"
+        ]))
+
     return DispatchResult(reply=random.choice([
         "Hmm, I don't know that one yet 🌸",
         "Hina is still learning! 🎀",

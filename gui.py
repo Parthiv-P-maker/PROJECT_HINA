@@ -2,6 +2,7 @@ import customtkinter as ctk
 import keyboard
 
 from core.assistant import hina_reply
+from core.ambient import AmbientThoughtManager
 from core.command_router import route_command
 from core.dispatcher import dispatch_command
 from core.startup import build_startup_message
@@ -235,6 +236,9 @@ output_label = ctk.CTkLabel(
 )
 output_label.pack(fill="x")
 
+ambient_manager = AmbientThoughtManager(app, output_var, output_label)
+ambient_manager.start()
+
 
 # =========================
 # ENTRY ROW
@@ -273,6 +277,9 @@ send_btn.pack(side="right")
 entry.bind("<Return>", execute_command)
 entry.bind("<FocusIn>", _on_entry_focus)
 entry.bind("<FocusOut>", _on_entry_blur)
+entry.bind("<KeyRelease>", ambient_manager.reset_timer)
+entry.bind("<FocusIn>", ambient_manager.reset_timer)
+entry.bind("<FocusOut>", ambient_manager.reset_timer)
 
 
 # =========================
