@@ -1,253 +1,207 @@
-# Project Hina 🌸
+# 🌸 Project Hina
 
-> An anime-inspired desktop assistant designed as a lightweight ambient desktop companion.
+<div align="center">
 
-Project Hina is a Python-based desktop assistant that combines desktop automation, voice interaction, natural command parsing, and a modern popup interface into a single assistant-oriented system.
+### *An Anime-Inspired Ambient Desktop Assistant*
 
-Unlike traditional chatbot applications, Hina is designed to function as a background desktop presence capable of assisting with everyday tasks through natural interaction.
-
-The long-term vision of the project is to evolve Hina from a lightweight desktop utility into a fully embodied anime assistant with memory, intelligent reasoning, expressive UI, and eventually Live2D or 3D avatar integration.
+A modular desktop companion built with Python, featuring voice interaction, persistent memory, animated UI systems, personality-driven responses, and future-ready AI architecture.
 
 ---
 
-# ✨ Features
+![Python](https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge\&logo=python)
+![CustomTkinter](https://img.shields.io/badge/CustomTkinter-UI-pink?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Active%20Development-purple?style=for-the-badge)
+![Architecture](https://img.shields.io/badge/Architecture-Modular-success?style=for-the-badge)
 
-## 🖥️ Desktop Assistant Features
-
-### Application Control
-
-* Open applications
-* Close applications
-* Restart applications
-* Alias support for common apps
-
-Examples:
-
-* `open chrome`
-* `launch vscode`
-* `close spotify`
-* `restart notepad`
+</div>
 
 ---
 
-### 📂 File Management
+# ✨ Overview
 
-* Find files by name
-* Find folders by name
-* Search and open files
-* Smart file/app fallback behavior
+Project Hina is a floating desktop assistant designed to provide a more immersive and personality-driven interaction experience compared to traditional utility assistants.
 
-Examples:
+The project combines:
 
-* `find my notes.pdf`
-* `open org.pdf`
-* `find project_hina folder`
+* Modern modular architecture
+* Anime-inspired desktop aesthetics
+* Voice interaction
+* Persistent memory systems
+* Personality-based responses
+* Ambient animations
+* Future AI integration capabilities
 
----
-
-### ⚙️ System Utilities
-
-* Tell current time
-* Tell current date
-* Battery status
-* Disk usage
-
-Examples:
-
-* `what time is it`
-* `check battery`
-* `disk usage`
+Rather than functioning solely as a command executor, Hina is designed as an evolving desktop companion framework focused on presence, responsiveness, and extensibility.
 
 ---
 
-### 🧮 Productivity Utilities
+# 🌸 Current Features
 
-* Calculator
-* Timer system
-* Countdown system
+## 🪟 Ambient Desktop Interface
 
-Examples:
-
-* `calculate 45*9`
-* `timer 60`
-* `countdown 5`
-
----
-
-### 🌸 Conversational Layer
-
-* Greetings
-* Personality responses
-* Startup messages
-* Goodbye messages
-* Utility descriptions
-
-Examples:
-
-* `hello`
-* `who are you`
-* `thanks`
+* Floating borderless assistant window
+* Sakura-inspired visual theme
+* Animated falling petal effects
+* Smooth draggable interface
+* Pulsing visual response effects
+* Always-on-top assistant mode
+* Global hotkey toggle (`Ctrl + H`)
 
 ---
 
-### 🔊 Voice Output
+## 🎤 Voice Interaction
 
-* Neural text-to-speech responses
-* Real-time spoken replies
-* Emoji-cleaned speech pipeline
-* Integrated GUI + voice workflow
-
-Powered by:
-
-* `edge-tts`
-* `pygame`
+* Edge-TTS powered voice output
+* Spoken assistant responses
+* Countdown voice announcements
+* Startup greeting interaction
 
 ---
 
-### 🪟 Popup GUI Assistant
+## 🧠 Persistent Memory System
 
-* Modern popup interface
-* Hotkey-based visibility toggle
-* Always-on-top assistant window
-* Lightweight workflow
-* Background-assistant behavior
+Hina currently remembers:
 
-Current hotkey:
+* User name
+* Favorite applications
+* Recently opened applications
+* Recently accessed files
 
-* `CTRL + H`
+Example:
 
----
-
-# 🧠 Project Philosophy
-
-Project Hina is intentionally designed around the idea of:
-
-> “Ambient desktop presence.”
-
-The project is not intended to become a traditional chatbot application.
-
-Instead, the goal is to create:
-
-* a lightweight desktop companion
-* an assistant-oriented workflow
-* an anime-inspired personality
-* a utility-focused assistant
-* a future AI companion platform
-
----
-
-# 🏗️ Architecture Overview
-
-## System Flow
-
-```text
-User Input
-    ↓
-parser.py
-    ↓
-actions.py
-    ↓
-voice.py
-    ↓
-gui.py
+```bash
+favorite app chrome as browser
+open browser
 ```
 
-The project uses a modular architecture to separate:
+---
 
-* parsing
-* execution
-* speech
-* interface
+## ⚡ Command System
 
-This makes the system easier to scale and maintain.
+### Application Management
+
+```bash
+open chrome
+close spotify
+restart vscode
+```
+
+### File & Folder Operations
+
+```bash
+open file notes.txt
+find folder downloads
+```
+
+### Utility Commands
+
+```bash
+tell time
+tell date
+battery
+disk usage
+calculate 25*12
+```
+
+### Timers & Countdown
+
+```bash
+timer 60
+countdown 10
+cancel timer
+```
 
 ---
 
-# 📁 Project Structure
+## 🎭 Personality Engine
+
+Hina includes a modular personality framework capable of dynamically altering assistant responses.
+
+Current personality presets:
+
+* Calm 🌸
+* Tsundere 💢
+
+The architecture is designed to support:
+
+* AI-generated responses
+* Emotional state systems
+* Mood adaptation
+* Context-aware dialogue generation
+
+---
+
+# 🏗 Project Architecture
+
+The project has been fully refactored into a scalable modular architecture.
 
 ```text
 project_hina/
 │
 ├── gui.py
-│   Main popup GUI interface
-│   Handles:
-│   - UI rendering
-│   - command routing
-│   - hotkeys
-│   - popup behavior
-│   - assistant responses
-│
+├── main.py
 ├── parser.py
-│   Natural language normalization layer
-│   Converts human-friendly phrases into executable commands
-│
 ├── actions.py
-│   Core desktop automation engine
-│   Handles:
-│   - app control
-│   - file search
-│   - utilities
-│   - timers
-│   - system functions
-│
+├── memory.py
 ├── voice.py
-│   Neural voice synthesis system
-│   Uses edge-tts for speech generation
 │
-├── assets/
-│   UI assets and future avatar resources
+├── core/
+│   ├── assistant.py
+│   ├── dispatcher.py
+│   ├── command_router.py
+│   ├── startup.py
+│   ├── countdown.py
+│   └── personality_engine.py
+│
+├── ui/
+│   ├── theme.py
+│   ├── animations.py
+│   ├── effects.py
+│   ├── widgets.py
+│   └── window.py
+│
+├── utils/
+│   ├── constants.py
+│   ├── helpers.py
+│   └── logger.py
 │
 ├── memory/
-│   Future persistent memory systems
+│   └── user_profile.json
 │
-├── requirements.txt
-│   Python dependencies
-│
-├── .gitignore
-│   Git exclusions
-│
-└── README.md
-    Project documentation
+└── assets/
+    ├── avatars/
+    ├── icons/
+    └── sounds/
 ```
 
 ---
 
-# 🛠️ Tech Stack
+# ⚙️ Technologies Used
 
-## Core
-
-* Python
-
-## GUI
-
-* CustomTkinter
-
-## Voice
-
-* edge-tts
-* pygame
-
-## System Interaction
-
-* keyboard
-* subprocess
-* psutil
-* os
+| Technology    | Purpose                   |
+| ------------- | ------------------------- |
+| Python 3.11+  | Core application          |
+| CustomTkinter | UI framework              |
+| Edge-TTS      | Voice synthesis           |
+| Pygame        | Audio playback            |
+| Keyboard      | Global hotkeys            |
+| JSON          | Persistent memory storage |
+| Threading     | Background task execution |
 
 ---
 
 # 🚀 Installation
 
-## Clone Repository
+## 1. Clone the Repository
 
 ```bash
-git clone <repository_url>
+git clone https://github.com/your-username/project_hina.git
 cd project_hina
 ```
 
 ---
 
-## Install Dependencies
+## 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -255,169 +209,114 @@ pip install -r requirements.txt
 
 ---
 
-## Run Project
+## 3. Launch Hina
+
+### GUI Mode
 
 ```bash
 python gui.py
 ```
 
----
+### CLI Mode
 
-# 🎮 Usage
-
-## Toggle Assistant
-
-Press:
-
-```text
-CTRL + H
-```
-
-to show or hide the assistant popup.
-
----
-
-## Example Commands
-
-### App Control
-
-```text
-open chrome
-close spotify
-restart vscode
-```
-
-### System Utilities
-
-```text
-what time is it
-check battery
-```
-
-### File Management
-
-```text
-find my dbms notes
-open org.pdf
-```
-
-### Productivity
-
-```text
-calculate 99*42
-countdown 5
+```bash
+python main.py
 ```
 
 ---
 
-# 🌸 UI Direction
+# 🎮 Controls
 
-Project Hina is being designed around an anime-inspired minimal desktop aesthetic.
-
-Planned visual direction:
-
-* rounded UI elements
-* soft dark themes
-* pastel accents
-* floating popup behavior
-* anime avatar integration
-* transparent overlay UI
-
-The goal is to create:
-
-> “A calm futuristic anime desktop assistant.”
+| Action                  | Shortcut   |
+| ----------------------- | ---------- |
+| Toggle Assistant Window | `Ctrl + H` |
 
 ---
 
-# 🔮 Future Roadmap
+# 🧪 Stability Status
 
-## V2 — Polished Desktop Companion
+### Current Build Status
 
-Focus:
-
-* tray mode
-* anime-themed UI
-* PNG avatar integration
-* notifications
-* transparent popup
-* persistent memory
-* parser improvements
+* ✅ Modular architecture completed
+* ✅ Voice system stabilized
+* ✅ Memory system operational
+* ✅ Personality engine operational
+* ✅ Animation systems modularized
+* ✅ Command dispatcher implemented
+* ✅ Parser routing stabilized
 
 ---
 
-## V3 — Intelligent Assistant
+# 🧠 Future Roadmap
 
-Focus:
+## Planned Features
 
-* local LLM integration
-* contextual understanding
-* smarter reasoning
-* conversational improvements
-* task chaining
-* semantic memory
+### 🤖 AI Integration
 
----
+* Local LLM integration
+* AI-generated personality responses
+* Context-aware dialogue generation
 
-## V4 — Embodied Assistant
+### 🎤 Voice Input
 
-Focus:
+* Speech recognition
+* Wake word activation
+* Continuous listening mode
+
+### 👀 Vision Systems
+
+* Screenshot understanding
+* OCR support
+* Desktop context awareness
+
+### 🎭 Character Systems
+
+* Dynamic mood engine
+* Adaptive personality shifting
+* Emotion-aware interactions
+
+### 🪄 Avatar Systems
 
 * Live2D integration
-* VRM/3D avatar support
-* lip sync
-* emotional expressions
-* desktop companion mode
-* animated interactions
+* Animated assistant avatars
+* Future 3D avatar support
+
+### 📚 Behavioral Learning
+
+* Usage habit analysis
+* Workflow prediction
+* Personalized suggestions
 
 ---
 
-# 📌 Current Status
+# 🎯 Design Philosophy
 
-## Current Development Stage
+Project Hina is designed around the concept of:
 
-✅ Core desktop assistant functionality complete
+> *“An assistant that feels present, not just functional.”*
 
-✅ Voice-enabled popup assistant complete
+The project prioritizes:
 
-✅ Modular backend architecture established
+* Modular scalability
+* Ambient interaction design
+* Personality-driven responses
+* Clean software architecture
+* Future AI experimentation
 
-🔄 UI and identity polish in progress
-
----
-
-# ⚠️ Important Notes
-
-Project Hina is currently optimized for:
-
-* Windows
-* local/offline usage
-* lightweight desktop workflows
-
-The project is still under active development and major systems may evolve over time.
+The long-term goal is to evolve Hina into a lightweight intelligent desktop companion framework capable of integrating advanced AI systems while maintaining a calm and aesthetically pleasing user experience.
 
 ---
 
-# 🌸 Final Vision
+# ⚠️ Disclaimer
 
-The long-term goal of Project Hina is to evolve from:
+Project Hina is currently under active development.
 
-> “A popup desktop utility assistant”
-
-into:
-
-> “A fully interactive anime desktop companion with intelligence, memory, and embodiment.”
+Some systems are experimental and may evolve significantly as future AI, voice, and interaction systems are integrated.
 
 ---
 
-# 📜 License
+# 🌸 Project Status
 
-This project is currently under personal development.
+### **Hina V1 — Stable Architecture Build**
 
-A formal license may be added in future releases.
-
----
-
-# 💖 Project Hina
-
-"A small assistant today.
-A living desktop companion tomorrow." 🌸
+The project has successfully transitioned from an experimental prototype into a structured, modular desktop assistant framework prepared for long-term expansion and AI integration.
