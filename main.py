@@ -15,10 +15,11 @@ from actions import (
     countdown
 )
 
-from parser import normalize_command
-from voice import speak
-
 import random
+
+from core.command_router import route_command
+from core.startup import build_startup_message, build_goodbye_message
+from voice import speak
 
 
 def hina_reply(message):
@@ -26,33 +27,15 @@ def hina_reply(message):
     speak(message)
 
 
-startup_lines = [
-    "Hina is awake and ready to help 🌸",
-    "Welcome back! What shall we do today? 🎀",
-    "Yay, Hina is here! 🌷",
-    "Ready for another productive day? ✨",
-    "Hina reporting in! Let's do our best 🌸"
-]
-
-goodbye_lines = [
-    "Bye bye! Take care 🌸",
-    "Hina is going to sleep now 🎀",
-    "See you soon! 🌷",
-    "Good work today! ✨",
-    "Until next time 🌸"
-]
-
-
-startup_message = random.choice(startup_lines)
+startup_message = build_startup_message()
 hina_reply(startup_message)
-
 
 while True:
     raw_command = input("You: ").lower()
-    command = normalize_command(raw_command)
+    command = route_command(raw_command)
 
     if command in ["bye", "exit"]:
-        hina_reply(random.choice(goodbye_lines))
+        hina_reply(build_goodbye_message())
         break
 
     elif command.startswith("open file "):

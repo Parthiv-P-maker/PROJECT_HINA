@@ -8,16 +8,16 @@ def normalize_command(command):
     ]
 
     # Time / system info
-    if "time" in command:
+    if command in ["time", "tell time"]:
         return "tell time"
 
-    elif "date" in command:
+    elif command in ["date", "tell date"]:
         return "tell date"
 
-    elif "battery" in command:
+    elif command == "battery":
         return "battery"
 
-    elif "disk" in command:
+    elif command == "disk usage":
         return "disk usage"
 
     # Calculator

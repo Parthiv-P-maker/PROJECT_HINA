@@ -1,7 +1,14 @@
 {
-    "name": "parthiv",
-    "recent_apps": [],
-    "favorite_apps": {},
+    "name": "parth",
+    "recent_apps": [
+        "chrome",
+        "org",
+        "vscode",
+        "spotify"
+    ],
+    "favorite_apps": {
+        "browser": "chrome"
+    },
     "recent_files": [],
     "favorite_folders": {}
 }

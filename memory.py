@@ -1,6 +1,6 @@
 import json
 
-PROFILE_PATH = "memory/user_profile.json"
+from utils.constants import MEMORY_PROFILE_PATH as PROFILE_PATH
 
 
 def load_profile():

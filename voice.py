@@ -1,6 +1,7 @@
 import asyncio
 import os
-import re
+
+from utils.helpers import clean_text
 
 try:
     import edge_tts
@@ -42,11 +43,6 @@ async def _speak_async(text):
         os.remove(filename)
     except Exception:
         pass
-
-
-def clean_text(text):
-    text = re.sub(r'[^\x00-\x7F]+', '', text)
-    return text.strip()
 
 
 def speak(text):
