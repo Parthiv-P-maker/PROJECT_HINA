@@ -2,6 +2,8 @@ import subprocess
 import threading
 import time
 import os
+import webbrowser
+from urllib.parse import quote
 try:
     import psutil  # type: ignore[reportMissingModuleSource]
     _HAS_PSUTIL = True
@@ -174,3 +176,30 @@ def countdown(seconds):
         time.sleep(1)
 
     return "Done!"
+
+
+def search_google(query):
+    """Search Google for the given query in the default browser."""
+    try:
+        if not query or query.strip() == "":
+            return "Please provide a search query 🌸"
+        
+        search_url = f"https://www.google.com/search?q={quote(query)}"
+        webbrowser.open(search_url)
+        return f"Searching Google for '{query}' 🌸"
+    except Exception as e:
+        return f"Couldn't open browser: {str(e)} 🌸"
+
+
+def search_chatgpt(query):
+    """Open ChatGPT with the given query."""
+    try:
+        if not query or query.strip() == "":
+            return "Please provide a search query 🌸"
+        
+        # Open ChatGPT.com with query in URL
+        search_url = f"https://chatgpt.com/?q={quote(query)}"
+        webbrowser.open(search_url)
+        return f"Opening ChatGPT to search '{query}' 🌸"
+    except Exception as e:
+        return f"Couldn't open ChatGPT: {str(e)} 🌸"

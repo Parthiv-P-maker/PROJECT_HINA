@@ -12,7 +12,9 @@ from actions import (
     search_and_open_file,
     set_timer,
     cancel_timer,
-    countdown
+    countdown,
+    search_google,
+    search_chatgpt,
 )
 
 import random
@@ -69,6 +71,14 @@ while True:
     elif command.startswith("calculate "):
         expression = command.replace("calculate ", "")
         hina_reply(calculate(expression))
+
+    elif command.startswith("search google "):
+        query = command.replace("search google ", "")
+        hina_reply(search_google(query))
+
+    elif command.startswith("search chatgpt "):
+        query = command.replace("search chatgpt ", "")
+        hina_reply(search_chatgpt(query))
 
     elif command.startswith("find file "):
         file_name = command.replace("find file ", "")

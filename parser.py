@@ -95,4 +95,28 @@ def normalize_command(command):
         return "set name " + name
     elif command.startswith("favorite app "):
         return command
+    
+    # Web search - ChatGPT
+    elif "search" in command and "in chatgpt" in command:
+        query = (
+            command.replace("search", "")
+            .replace("in chatgpt", "")
+            .replace("about", "")
+            .strip()
+        )
+        return "search chatgpt " + query
+    
+    elif command.startswith("ask chatgpt about "):
+        query = command.replace("ask chatgpt about ", "").strip()
+        return "search chatgpt " + query
+    
+    # Web search - Google
+    elif command.startswith("search "):
+        query = command.replace("search ", "").strip()
+        return "search google " + query
+    
+    elif command.startswith("google "):
+        query = command.replace("google ", "").strip()
+        return "search google " + query
+    
     return command

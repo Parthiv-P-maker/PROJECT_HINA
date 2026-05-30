@@ -1,7 +1,11 @@
 import asyncio
 import os
+import threading
 
 from utils.helpers import clean_text
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 try:
     import edge_tts
@@ -45,20 +49,61 @@ async def _speak_async(text):
         pass
 
 
-def speak(text):
+def _speak_sync(text):
+    """Synchronous speech via pyttsx3 or fallback."""
     clean = clean_text(text)
-    if _HAS_EDGE_TTS and _HAS_PYGAME:
-        try:
-            asyncio.run(_speak_async(clean))
-            return
-        except Exception:
-            pass
-
-    # Fallbacks
     try:
         import pyttsx3
         engine = pyttsx3.init()
         engine.say(clean)
         engine.runAndWait()
     except Exception:
+        logger.warning("pyttsx3 fallback failed for: %s", clean)
         print(f"Hina (speak): {clean}")
+
+
+def _speak_thread(text):
+    """Run speech synthesis in a background thread."""
+    try:
+        clean = clean_text(text)
+        if _HAS_EDGE_TTS and _HAS_PYGAME:
+            try:
+                asyncio.run(_speak_async(clean))
+                return
+            except Exception as e:
+                logger.warning("edge_tts failed: %s", e)
+        
+        # Fall back to pyttsx3
+        _speak_sync(clean)
+    except Exception as e:
+        logger.error("Speech synthesis failed: %s", e)
+
+
+def speak(text, blocking=False):
+    """
+    Speak the given text.
+    
+    Args:
+        text: The text to speak
+        blocking: If True, block until speech completes. If False, run in background thread.
+    """
+    clean = clean_text(text)
+    
+    if not blocking:
+        # Run in background thread to avoid blocking UI
+        thread = threading.Thread(
+            target=_speak_thread,
+            args=(clean,),
+            daemon=True
+        )
+        thread.start()
+    else:
+        # Blocking mode for testing or when needed
+        if _HAS_EDGE_TTS and _HAS_PYGAME:
+            try:
+                asyncio.run(_speak_async(clean))
+                return
+            except Exception as e:
+                logger.warning("edge_tts failed: %s", e)
+        
+        _speak_sync(clean)

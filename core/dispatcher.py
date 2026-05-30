@@ -15,6 +15,8 @@ from actions import (
     calculate,
     set_timer,
     cancel_timer,
+    search_google,
+    search_chatgpt,
 )
 from core.assistant import generate_response
 from core.countdown import voiced_countdown
@@ -107,9 +109,15 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
     if command.startswith("calculate "):
         return DispatchResult(reply=calculate(command.replace("calculate ", "")))
 
-    
+    if command.startswith("search google "):
+        query = command.replace("search google ", "").strip()
+        return DispatchResult(reply=search_google(query))
 
-    if command.startswith("countdown "):
+    if command.startswith("search chatgpt "):
+        query = command.replace("search chatgpt ", "").strip()
+        return DispatchResult(reply=search_chatgpt(query))
+
+    
         seconds = try_parse_int(command.replace("countdown ", ""))
         if seconds is None:
             return DispatchResult(reply="Please enter a valid number 🌸")

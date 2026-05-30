@@ -1,5 +1,6 @@
 import customtkinter as ctk
 import keyboard
+import threading
 
 from core.assistant import hina_reply
 from core.ambient import AmbientThoughtManager
@@ -310,19 +311,18 @@ keyboard.add_hotkey(
 # STARTUP GREETING
 # =========================
 
-# =========================
-# STARTUP GREETING
-# =========================
-
+# Display greeting immediately in UI (non-blocking)
 saved_name = get_name()
 startup_message = build_startup_message(saved_name)
+output_var.set(startup_message)
 
-hina_reply(
-    startup_message,
-    output_var,
-    output_label,
-    app
-)
+# Speak the greeting in a background thread to avoid blocking UI
+def _speak_startup():
+    from voice import speak
+    speak(startup_message, blocking=False)
+
+greeting_thread = threading.Thread(target=_speak_startup, daemon=True)
+greeting_thread.start()
 
 app.after(2500, app.withdraw)
 

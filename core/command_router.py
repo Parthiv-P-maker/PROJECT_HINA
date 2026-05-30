@@ -1,6 +1,7 @@
 from parser import normalize_command
-from core.ai_engine import fallback_parse_command
+from core.ai_loader import get_ai_engine
 from core.context_manager import context_manager
+import threading
 
 KNOWN_COMMAND_PREFIXES = [
     "tell time",
@@ -19,6 +20,8 @@ KNOWN_COMMAND_PREFIXES = [
     "countdown ",
     "favorite app ",
     "set name ",
+    "search google ",
+    "search chatgpt ",
     "hello",
     "how are you",
     "who are you",
@@ -37,7 +40,10 @@ def _is_known_command(normalized_command):
 
 
 def route_command(raw_command):
-    """Normalize user input and optionally use AI fallback for natural language."""
+    """
+    Normalize user input and optionally use AI fallback for natural language.
+    AI fallback is only attempted if command is not recognized via pattern matching.
+    """
     clean_text = raw_command.strip().lower()
     normalized = normalize_command(clean_text)
 
@@ -45,10 +51,17 @@ def route_command(raw_command):
         context_manager.register_command(raw_command, normalized, success=True)
         return normalized
 
-    ai_fallback = fallback_parse_command(clean_text, context_manager.get_context())
-    if ai_fallback and _is_known_command(ai_fallback):
-        context_manager.register_command(raw_command, ai_fallback, success=True)
-        return ai_fallback
+    # Try AI fallback only if pattern matching failed
+    # This is deferred via lazy loading to avoid startup blocking
+    ai_engine = get_ai_engine()
+    if ai_engine and hasattr(ai_engine, 'fallback_parse_command'):
+        try:
+            ai_fallback = ai_engine.fallback_parse_command(clean_text, context_manager.get_context())
+            if ai_fallback and _is_known_command(ai_fallback):
+                context_manager.register_command(raw_command, ai_fallback, success=True)
+                return ai_fallback
+        except Exception:
+            pass  # Fall through to normalized command
 
     context_manager.register_command(raw_command, normalized, success=False)
     return normalized
