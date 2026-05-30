@@ -1,0 +1,31 @@
+{
+  "coding": {
+    "apps": [
+      "vscode",
+      "spotify",
+      "chatgpt",
+      "claude",
+      "cmd"
+    ]
+  },
+
+  "study": {
+    "apps": [
+      "spotify",
+      "notepad"
+    ],
+    "folders": [
+      "C:\\Studies"
+    ]
+  },
+
+  "research": {
+    "apps": [
+      "chrome",
+      "chatgpt"
+    ],
+    "folders": [
+      "C:\\Papers"
+    ]
+  }
+}

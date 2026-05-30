@@ -11,6 +11,8 @@ except Exception:
     psutil = None
     _HAS_PSUTIL = False
 
+from core.mode_manager import APP_ALIASES
+
 def open_app(app_name):
     common_apps = {
         "chrome": "chrome",
@@ -26,13 +28,24 @@ def open_app(app_name):
     }
 
     target = app_name.lower().strip()
+    alias_target = APP_ALIASES.get(target)
+
+    if alias_target:
+        try:
+            if os.path.isfile(alias_target):
+                subprocess.Popen(f'start "" "{alias_target}"', shell=True)
+            else:
+                subprocess.Popen(f'start "" {alias_target}', shell=True)
+            return f"Opening {app_name} 🌸"
+        except Exception:
+            return f"Couldn't open {app_name} 🌸"
 
     if target in common_apps:
         try:
             subprocess.Popen(f"start {common_apps[target]}", shell=True)
             return f"Opening {app_name} 🌸"
-        except:
-            return "Couldn't open app 🌸"
+        except Exception:
+            return f"Couldn't open {app_name} 🌸"
 
     file_result = search_and_open_file(app_name)
     if file_result != "File not found 🌸":
@@ -41,7 +54,7 @@ def open_app(app_name):
     try:
         subprocess.run(f"start {app_name}", shell=True)
         return f"Opening {app_name} 🌸"
-    except:
+    except Exception:
         return f"Couldn't find {app_name} 🌸"
     
 def close_app(app_name):

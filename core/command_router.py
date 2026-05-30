@@ -22,6 +22,7 @@ KNOWN_COMMAND_PREFIXES = [
     "set name ",
     "search google ",
     "search chatgpt ",
+    "mode ",
     "hello",
     "how are you",
     "who are you",

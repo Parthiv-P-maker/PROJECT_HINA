@@ -19,6 +19,7 @@ from actions import (
     search_chatgpt,
 )
 from core.assistant import generate_response
+from core.mode_manager import launch_mode
 from core.countdown import voiced_countdown
 from core.startup import build_goodbye_message
 from memory import (
@@ -65,6 +66,10 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
         add_recent_app(app_name)
         open_app(app_name)
         return DispatchResult(reply=generate_response("open_app", app_name))
+
+    if command.startswith("mode "):
+        mode_name = command.replace("mode ", "").strip()
+        return DispatchResult(reply=launch_mode(mode_name))
 
     if command.startswith("find folder "):
         return DispatchResult(reply=find_folder(command.replace("find folder ", "")))

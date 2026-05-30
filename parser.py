@@ -1,6 +1,11 @@
 def normalize_command(command):
     command = command.lower().strip()
 
+    if command.endswith(" mode"):
+        mode_name = command[:-len(" mode")].strip()
+        if mode_name:
+            return "mode " + mode_name
+
     file_extensions = [
         ".pdf", ".txt", ".py", ".docx", ".doc",
         ".pptx", ".ppt", ".jpg", ".jpeg", ".png",
