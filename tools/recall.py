@@ -25,10 +25,17 @@ def display(fact):
     return re.sub(r"\bi\b", "I", fact)
 
 
+_REMEMBER_SUFFIXES = (" remember that", " remember this", " remember it", " please remember")
+
+
 def _parse_remember(text):
     for prefix, keep in _REMEMBER.items():
         if text.startswith(prefix):
             return "remember fact " + keep + text[len(prefix):].strip()
+    body = text.rstrip(".! ")
+    for suffix in _REMEMBER_SUFFIXES:  # "my college is TKM, remember that"
+        if body.endswith(suffix) and body[:-len(suffix)].strip(" ,"):
+            return "remember fact " + body[:-len(suffix)].strip(" ,")
     return None
 
 

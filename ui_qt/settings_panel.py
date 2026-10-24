@@ -169,6 +169,15 @@ class SettingsPanel(QWidget):
     def load_values(self, settings):
         self.settings = dict(settings)
         s = self.settings
+        installed = []
+        try:
+            import core.ai_engine as ai_engine
+            installed = ai_engine.installed_models()
+        except Exception:
+            pass
+        if installed:  # only offer models Ollama actually has (others answer 404)
+            self.ai_model.clear()
+            self.ai_model.addItems(installed)
         self.ai_model.setCurrentText(s["ai_model"])
         self.local_only.setChecked(bool(s["local_only"]))
         self.tts_voice.setCurrentText(s["tts_voice"])

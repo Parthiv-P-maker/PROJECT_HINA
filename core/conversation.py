@@ -85,6 +85,10 @@ def chat_reply(text):
             reply = engine.chat_reply(text, chat_context(), history, summary, facts)
             if reply:
                 return reply
+            missing = engine.missing_model() if hasattr(engine, "missing_model") else None
+            if missing:
+                return (f"My language model, {missing}, isn't installed, so I can't really talk yet. "
+                        f"Pick an installed model in Settings, or run: ollama pull {missing}")
         except Exception as exc:
             logger.warning("Chat failed, using a canned reply: %s", exc)
     return random.choice(UNKNOWN_REPLIES)

@@ -92,23 +92,53 @@ TOOLS = registry.ai_schemas()  # generated from the tool registry (tools/)
 
 
 _health_lock = threading.Lock()
-_health = {"ok": False, "checked_at": 0.0}
+_health = {"ok": False, "checked_at": 0.0, "models": None}  # ok = server reachable
+_warned_missing = set()
+
+
+def _model_names(response):
+    """Installed model names from an /api/tags response, or None if it can't be read."""
+    try:
+        return {m["name"] for m in response.json().get("models", []) if m.get("name")}
+    except Exception:
+        return None
+
+
+def installed_models():
+    """Models Ollama reported at the last health check (empty if unknown)."""
+    return sorted(_health.get("models") or [])
+
+
+def missing_model():
+    """MODEL if Ollama is up but that model isn't installed (Ollama answers 404), else None."""
+    models = _health.get("models")
+    if not _health.get("ok") or not models:
+        return None
+    names = models | {m[:-len(":latest")] for m in models if m.endswith(":latest")}
+    return None if MODEL in names else MODEL
 
 
 def ollama_available():
-    """Quick (1s) check that Ollama is reachable. Cached so a missing server costs nothing."""
+    """Quick (1s) check that Ollama is reachable and has MODEL. Cached so a missing server costs nothing."""
     with _health_lock:
         now = time.time()
-        if now - _health["checked_at"] < HEALTH_CACHE_SECONDS:
-            return _health["ok"]
-        try:
-            requests.get(OLLAMA_TAGS_URL, timeout=HEALTH_TIMEOUT).raise_for_status()
-            _health["ok"] = True
-        except Exception as exc:
-            logger.info("Ollama not reachable, skipping AI: %s", exc)
-            _health["ok"] = False
-        _health["checked_at"] = now
-        return _health["ok"]
+        if now - _health["checked_at"] >= HEALTH_CACHE_SECONDS:
+            try:
+                response = requests.get(OLLAMA_TAGS_URL, timeout=HEALTH_TIMEOUT)
+                response.raise_for_status()
+                _health["ok"] = True
+                _health["models"] = _model_names(response)
+            except Exception as exc:
+                logger.info("Ollama not reachable, skipping AI: %s", exc)
+                _health["ok"] = False
+            _health["checked_at"] = now
+        missing = missing_model()
+        if missing and missing not in _warned_missing:
+            _warned_missing.add(missing)
+            logger.warning("Ollama is running but model %r isn't installed (installed: %s). "
+                           "Pick one in Settings or run: ollama pull %s",
+                           missing, ", ".join(installed_models()) or "none", missing)
+        return _health["ok"] and missing is None
 
 
 def _send_ollama_request(payload, timeout=DEFAULT_TIMEOUT, url=OLLAMA_GENERATE_URL):

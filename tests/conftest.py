@@ -98,6 +98,7 @@ def isolate_machine(tmp_path, monkeypatch):
     # 6. Fresh AI + session state.
     ai_engine._health["checked_at"] = 0.0
     ai_engine._health["ok"] = False
+    ai_engine._health["models"] = None
     from core.context_manager import context_manager
     context_manager.recent_commands.clear()
     context_manager.recent_failures.clear()
