@@ -27,6 +27,7 @@ _CJK_RE = re.compile(
     "一-鿿가-힯豈-﫿＀-￯]"
 )
 _NUMBER_RE = re.compile(r"\d+")
+_SENTENCE_RE = re.compile(r"[.!?]+(?=\s+\S)")  # sentence breaks followed by more text
 
 # Generated from the tool registry (tools/).
 KNOWN_NORMALIZED_COMMANDS = registry.prompt_commands()
@@ -83,7 +84,8 @@ to actually perform actions on the user's computer.
 
 Call a tool only when the user's request clearly matches one of the available
 tools. If nothing fits, or the request is just conversation (greetings, small
-talk, questions about yourself), do not call any tool.
+talk, questions about yourself, questions about the user or what they said
+earlier), do not call any tool.
 """
 
 TOOLS = registry.ai_schemas()  # generated from the tool registry (tools/)
@@ -172,6 +174,10 @@ def contains_cjk(text):
 def _is_acceptable_rewrite(rewrite, base_reply, target=""):
     """Reject rewrites that are empty, not English, rambling, or drifted off the action."""
     if not rewrite or contains_cjk(rewrite) or len(rewrite) > MAX_REPLY_CHARS:
+        return False
+
+    # An extra sentence is the model adding things ("It's 3 AM, sweetie. Your birthday is ...").
+    if len(_SENTENCE_RE.findall(rewrite)) > len(_SENTENCE_RE.findall(base_reply)):
         return False
 
     lowered = rewrite.lower()
@@ -301,7 +307,7 @@ Use only the facts below about the user; never invent any. If you don't know, sa
 Context:
 - current time: {now} ({time_of_day})
 - recent apps: {recent_apps}
-- things the user asked you to remember: {facts}
+- things the user asked you to remember, in their own words ("I"/"my" means the user): {facts}
 - earlier conversation (summary): {summary}
 """.strip()
 
@@ -346,7 +352,7 @@ def build_chat_messages(text, context=None, history=(), summary="", facts=()):
         now=context.get("now") or time.strftime("%A %H:%M"),
         time_of_day=context.get("time_of_day", "day"),
         recent_apps=", ".join(context.get("recent_apps", [])) or "none",
-        facts="; ".join(facts) or "none",
+        facts="; ".join(f'"{fact}"' for fact in facts) or "none",
         summary=summary or "none",
     )
     messages = [{"role": "system", "content": system}]

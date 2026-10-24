@@ -12,6 +12,7 @@ background once enough have piled up.
 """
 
 import random
+import re
 import threading
 from datetime import datetime
 
@@ -34,6 +35,23 @@ UNKNOWN_REPLIES = [
 ]
 
 _summary_lock = threading.Lock()
+
+
+_QUESTION_START = re.compile(
+    r"^(what|whats|what's|when|where|who|whos|who's|which|why|how|do|does|did|am|is|are|was|were|have|has)\b")
+_FIRST_PERSON = re.compile(r"\b(i|i'm|im|my|me|mine|myself)\b")
+_RECALL_WORDS = re.compile(r"\b(said|say|told|tell you|mentioned|remember|talk(?:ed)? about|name|birthday)\b")
+
+
+def is_personal_question(text):
+    """A question about the user or the conversation ("when is my birthday?"), not a request."""
+    text = (text or "").lower().strip()
+    if not (text.endswith("?") or _QUESTION_START.match(text)) or not _FIRST_PERSON.search(text):
+        return False
+    if _RECALL_WORDS.search(text):
+        return True
+    wanted = memory_store.keywords(text)
+    return bool(wanted) and any(wanted & memory_store.keywords(f["text"]) for f in memory_store.list_facts())
 
 
 def kind_of(command):

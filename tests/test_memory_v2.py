@@ -260,3 +260,50 @@ class TestFacts:
     def test_few_facts_are_always_included(self):
         memory_store.add_fact("i like tea")
         assert [f["text"] for f in memory_store.relevant_facts("anything")] == ["i like tea"]
+
+
+# ---- bugs found against real Qwen 2.5 3B ---------------------------------------------
+
+class TestRealModelRegressions:
+    def test_whats_my_name_answers_without_the_model(self, fake_ollama, machine):
+        memory.set_name("Malu")
+        fake_ollama.tool_call = ("set_name", {"name": "user"})  # what Qwen actually did
+        assert run("What's my name?").reply == "You're Malu."
+        assert memory.get_name() == "Malu" and fake_ollama.requests == []
+
+    def test_set_name_is_not_a_model_tool_and_rejects_placeholders(self, machine):
+        assert "set_name" not in {t["function"]["name"] for t in ai_engine.TOOLS}
+        assert "What should I call you" in dispatch_command("set name user").reply
+        assert memory.get_name() is None
+        assert "Malu" in run("call me Malu").reply and memory.get_name() == "Malu"
+
+    def test_names_and_facts_keep_their_capitals(self, machine):
+        run("My name is Malu")
+        run("Remember that I study computer science at VIT.")
+        assert memory.get_name() == "Malu"
+        assert memory_store.list_facts()[0]["text"] == "I study computer science at VIT"
+
+    def test_remember_my_keeps_the_my(self, machine):
+        assert "Noted: my birthday is on 3 March" in run("remember my birthday is on 3 March").reply
+
+    @pytest.mark.parametrize("text", ["When is my birthday?", "what did I say about Friday?",
+                                      "do you remember what I told you", "what do I study?"])
+    def test_personal_questions_go_to_chat_not_tools(self, fake_ollama, text):
+        memory_store.add_fact("I study computer science at VIT")
+        fake_ollama.tool_call = ("tell_date", {})  # what Qwen actually did for the birthday question
+        assert route_command(text) == "chat::" + text
+        assert all(url.endswith("/api/chat") and "tools" not in body for url, body in fake_ollama.requests)
+
+    @pytest.mark.parametrize("text", ["what time is it?", "how do I open chrome?", "what's my battery?"])
+    def test_other_questions_still_try_tools(self, fake_ollama, text):
+        fake_ollama.tool_call = ("tell_time", {})
+        fake_ollama.generate_reply = "It is 3 o'clock"
+        assert route_command(text).startswith("ai_reply::")
+
+    def test_rewrite_that_adds_a_sentence_is_discarded(self, fake_ollama):
+        fake_ollama.generate_reply = "It's 03:57 AM, sweetie. Your birthday is on March 3rd."
+        assert ai_engine.rewrite_action_reply("The time is 03:57 AM", "tell_time") == "The time is 03:57 AM"
+
+    def test_facts_are_quoted_as_the_users_words(self):
+        messages = ai_engine.build_chat_messages("hi", {"name": "Malu"}, [], "", ["my birthday is on 3 March"])
+        assert '"my birthday is on 3 March"' in messages[0]["content"]

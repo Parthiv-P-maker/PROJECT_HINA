@@ -68,6 +68,7 @@ Hina currently remembers:
 * Recently opened applications
 * Recently accessed files
 * The conversation itself (restored in the HUD console after a restart)
+* Your name: `my name is Malu` / `call me Malu`, and `what's my name?`
 * Facts you ask her to keep: `remember that my sister is called Maya`,
   `what do you know about me?`, `forget Maya` (forgetting several facts asks first)
 

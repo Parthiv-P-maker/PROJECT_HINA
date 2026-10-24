@@ -4,7 +4,7 @@ from core.context_manager import context_manager
 import threading
 from core import permissions
 from tools import registry
-from core.conversation import CHAT_PREFIX
+from core.conversation import CHAT_PREFIX, is_personal_question
 
 # Generated from the tool registry (tools/); kept for introspection.
 KNOWN_COMMAND_PREFIXES = registry.known_prefixes()
@@ -12,6 +12,20 @@ KNOWN_COMMAND_PREFIXES = registry.known_prefixes()
 
 def _is_known_command(normalized_command):
     return registry.is_known_command(normalized_command)
+
+
+# Commands whose argument is stored as typed: put back the capitals lowercasing removed.
+_KEEP_CASE = ("set name ", "remember fact ")
+
+
+def _restore_case(raw_command, normalized):
+    for prefix in _KEEP_CASE:
+        if normalized.startswith(prefix):
+            arg = normalized[len(prefix):]
+            at = raw_command.lower().rfind(arg)
+            if arg and at >= 0 and raw_command[at:at + len(arg)].lower() == arg:
+                return prefix + raw_command[at:at + len(arg)]
+    return normalized
 
 
 def route_command(raw_command):
@@ -28,11 +42,17 @@ def route_command(raw_command):
             return "confirm yes" if answer else "confirm no"
         permissions.cancel_pending("ignored")
 
-    normalized = normalize_command(clean_text)
+    normalized = _restore_case(raw_command, normalize_command(clean_text))
 
     if _is_known_command(normalized):
         context_manager.register_command(raw_command, normalized, success=True)
         return normalized
+
+    # "When is my birthday?" / "what did I say about Friday?" are for chat, which has the
+    # facts and history; tool calling would answer them with the date or a wrong tool.
+    if is_personal_question(clean_text):
+        context_manager.register_command(raw_command, "chat", success=True)
+        return CHAT_PREFIX + raw_command.strip()
 
     # Try AI fallback only if pattern matching failed
     # This is deferred via lazy loading to avoid startup blocking

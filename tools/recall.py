@@ -6,7 +6,9 @@ import memory
 from core import conversation, memory_store, permissions
 from tools.registry import Param, ask_or_reply, tool
 
-_REMEMBER = ("remember that ", "remember: ", "dont forget that ", "don't forget that ")
+# prefix -> what of it belongs to the fact ("remember my birthday is ..." keeps "my")
+_REMEMBER = {"remember that ": "", "remember: ": "", "dont forget that ": "", "don't forget that ": "",
+             "remember my ": "my ", "remember i ": "i ", "remember im ": "im ", "remember i'm ": "i'm "}
 _FORGET_ALL = {"everything", "all", "all facts", "everything you know", "everything about me",
                "everything you know about me", "all about me"}
 
@@ -24,9 +26,9 @@ def display(fact):
 
 
 def _parse_remember(text):
-    for prefix in _REMEMBER:
+    for prefix, keep in _REMEMBER.items():
         if text.startswith(prefix):
-            return "remember fact " + text[len(prefix):].strip()
+            return "remember fact " + keep + text[len(prefix):].strip()
     return None
 
 

@@ -57,14 +57,36 @@ _smalltalk("smalltalk_tell_me_something", "tell me something", [
 ], triggers=("tell me something", "say something"))
 
 
+_NAME_PREFIXES = ("my name is ", "call me ", "you can call me ")
+_NOT_NAMES = {"", "user", "the user", "friend", "sir", "madam", "unknown", "me", "you", "hina"}
+_ASK_NAME = {"whats my name", "what's my name", "what is my name", "do you know my name",
+             "do you remember my name", "who am i"}
+
+
 def _parse_my_name(text):
-    if text.startswith("my name is "):
-        return "set name " + text.replace("my name is ", "").strip()
+    for prefix in _NAME_PREFIXES:
+        if text.startswith(prefix):
+            return "set name " + text[len(prefix):].strip()
     return None
 
 
+# Not exposed to the model: Qwen called it for "what's my name?" and saved "user" as the name.
 @tool("set_name", "Remember the user's name for future greetings.",
       {"name": Param("The user's name")},
-      command="set name ", parse=_parse_my_name, ai=True, priority=60)
+      command="set name ", parse=_parse_my_name, priority=60)
 def set_name(ctx):
-    return memory.set_name(ctx.arg.strip())
+    name = ctx.arg.strip().rstrip(".!").strip()
+    if name.lower() in _NOT_NAMES or "?" in name or len(name.split()) > 4:
+        return "What should I call you? Say \"my name is ...\"."
+    return memory.set_name(name)
+
+
+def _parse_ask_name(text):
+    return "whats my name" if text.rstrip("?.! ") in _ASK_NAME else None
+
+
+@tool("get_name", "Tell the user the name Hina has for them.",
+      command="whats my name", parse=_parse_ask_name, priority=5)
+def get_name():
+    name = memory.get_name()
+    return f"You're {name}." if name else "You haven't told me your name yet. Say \"my name is ...\"."
