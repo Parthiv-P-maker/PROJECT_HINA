@@ -1,0 +1,256 @@
+"""Slide-in settings panel (gear button). Edits a copy; `saved` fires with the new dict."""
+
+from PySide6.QtCore import QEasingCurve, QPoint, QPointF, QPropertyAnimation, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import (
+    QCheckBox, QColorDialog, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
+    QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QVBoxLayout, QWidget,
+)
+
+from ui_qt import settings as settings_mod
+from ui_qt import theme
+from ui_qt.hud import chamfer_path
+
+
+class SettingsPanel(QWidget):
+    saved = Signal(dict)
+    preview = Signal(dict)     # live accent/opacity preview while editing
+    closed = Signal()
+
+    WIDTH = 330
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self.setObjectName("SettingsPanel")
+        self.setAttribute(Qt.WA_StyledBackground, False)
+        self.settings = dict(settings)
+        self.accent = theme.accent(settings)
+        self.open = False
+        self._anim = QPropertyAnimation(self, b"pos", self)
+        self._anim.setDuration(260)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim.finished.connect(self._anim_done)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(18, 14, 14, 14)
+        outer.setSpacing(8)
+        head = QHBoxLayout()
+        title = QLabel("SYSTEM CONFIGURATION")
+        title.setObjectName("Caption")
+        head.addWidget(title)
+        head.addStretch(1)
+        close = QPushButton("✕")
+        close.setObjectName("Chrome")
+        close.setToolTip("Close settings")
+        close.clicked.connect(self.cancel)
+        head.addWidget(close)
+        outer.addLayout(head)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameStyle(0)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.viewport().setAutoFillBackground(False)
+        scroll.setObjectName("SettingsScroll")
+        body = QWidget()
+        body.setObjectName("SettingsBody")
+        form = QFormLayout(body)
+        form.setContentsMargins(0, 0, 6, 0)
+        form.setVerticalSpacing(7)
+        form.setLabelAlignment(Qt.AlignLeft)
+        form.setRowWrapPolicy(QFormLayout.WrapAllRows)
+        scroll.setWidget(body)
+        outer.addWidget(scroll, 1)
+
+        self.ai_model = QComboBox()
+        self.ai_model.setEditable(True)
+        self.ai_model.addItems(["qwen2.5:3b", "qwen2.5:7b", "llama3.2:3b", "phi3:mini"])
+        form.addRow("AI MODEL (OLLAMA)", self.ai_model)
+
+        self.local_only = QCheckBox("Local only (offline voice)")
+        self.local_only.setToolTip("Use the offline pyttsx3 voice instead of cloud edge-tts")
+        form.addRow(self.local_only)
+
+        self.tts_voice = QComboBox()
+        self.tts_voice.setEditable(True)
+        self.tts_voice.addItems(settings_mod.TTS_VOICES)
+        form.addRow("TTS VOICE", self.tts_voice)
+
+        self.whisper = QComboBox()
+        self.whisper.addItems(settings_mod.WHISPER_MODELS)
+        form.addRow("WHISPER MODEL", self.whisper)
+
+        self.toggle_hotkey = QLineEdit()
+        form.addRow("SHOW / HIDE HOTKEY", self.toggle_hotkey)
+        self.ptt_hotkey = QLineEdit()
+        form.addRow("PUSH-TO-TALK HOTKEY", self.ptt_hotkey)
+
+        accent_row = QWidget()
+        ar = QHBoxLayout(accent_row)
+        ar.setContentsMargins(0, 0, 0, 0)
+        ar.setSpacing(4)
+        self.swatches = []
+        for hex_ in settings_mod.ACCENTS:
+            b = QPushButton()
+            b.setFixedSize(22, 22)
+            b.setToolTip(hex_)
+            b.setStyleSheet(f"background:{hex_}; border:1px solid rgba(255,255,255,60);")
+            b.clicked.connect(lambda _=False, h=hex_: self._set_accent(h))
+            ar.addWidget(b)
+            self.swatches.append(b)
+        pick = QPushButton("…")
+        pick.setFixedSize(26, 22)
+        pick.setToolTip("Custom colour")
+        pick.clicked.connect(self._pick_colour)
+        ar.addWidget(pick)
+        ar.addStretch(1)
+        form.addRow("ACCENT", accent_row)
+
+        self.opacity = QSlider(Qt.Horizontal)
+        self.opacity.setRange(30, 100)
+        self.opacity.valueChanged.connect(lambda v: self._preview(opacity=v / 100))
+        form.addRow("OPACITY", self.opacity)
+
+        self.on_top = QCheckBox("Always on top")
+        form.addRow(self.on_top)
+
+        self.ambient = QSpinBox()
+        self.ambient.setRange(0, 240)
+        self.ambient.setSuffix(" min")
+        self.ambient.setSpecialValueText("off")
+        form.addRow("AMBIENT THOUGHTS EVERY", self.ambient)
+
+        self.folders = QPlainTextEdit()
+        self.folders.setPlaceholderText("One folder per line, e.g. C:\\Users\\me\\Projects")
+        self.folders.setFixedHeight(70)
+        form.addRow("EXTRA SEARCH FOLDERS", self.folders)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        self.cancel_btn = QPushButton("CANCEL")
+        self.cancel_btn.clicked.connect(self.cancel)
+        self.save_btn = QPushButton("SAVE")
+        self.save_btn.clicked.connect(self.save)
+        buttons.addWidget(self.cancel_btn)
+        buttons.addWidget(self.save_btn)
+        outer.addLayout(buttons)
+        self.hide()
+
+    # ---- values -----------------------------------------------------
+    def load_values(self, settings):
+        self.settings = dict(settings)
+        s = self.settings
+        self.ai_model.setCurrentText(s["ai_model"])
+        self.local_only.setChecked(bool(s["local_only"]))
+        self.tts_voice.setCurrentText(s["tts_voice"])
+        self.whisper.setCurrentText(s["whisper_model"])
+        self.toggle_hotkey.setText(s["toggle_hotkey"])
+        self.ptt_hotkey.setText(s["ptt_hotkey"])
+        self.opacity.blockSignals(True)
+        self.opacity.setValue(int(round(s["opacity"] * 100)))
+        self.opacity.blockSignals(False)
+        self.on_top.setChecked(bool(s["always_on_top"]))
+        self.ambient.setValue(int(s["ambient_minutes"]))
+        self.folders.setPlainText("\n".join(s["search_folders"]))
+        self._accent = s["accent"]
+
+    def values(self):
+        out = dict(self.settings)
+        out.update(
+            ai_model=self.ai_model.currentText().strip() or settings_mod.DEFAULTS["ai_model"],
+            local_only=self.local_only.isChecked(),
+            tts_voice=self.tts_voice.currentText().strip() or settings_mod.DEFAULTS["tts_voice"],
+            whisper_model=self.whisper.currentText(),
+            toggle_hotkey=self.toggle_hotkey.text().strip().lower() or "ctrl+h",
+            ptt_hotkey=self.ptt_hotkey.text().strip().lower() or "ctrl+m",
+            accent=self._accent,
+            opacity=self.opacity.value() / 100,
+            always_on_top=self.on_top.isChecked(),
+            ambient_minutes=self.ambient.value(),
+            search_folders=[ln.strip() for ln in self.folders.toPlainText().splitlines() if ln.strip()],
+        )
+        return out
+
+    def _set_accent(self, hex_):
+        self._accent = hex_
+        self._preview(accent=hex_)
+
+    def _pick_colour(self):
+        c = QColorDialog.getColor(QColor(self._accent), self, "Accent colour")
+        if c.isValid():
+            self._set_accent(c.name())
+
+    def _preview(self, **changes):
+        s = self.values()
+        s.update(changes)
+        self.preview.emit(s)
+
+    def set_accent(self, color):
+        self.accent = QColor(color)
+        self.update()
+
+    # ---- open / close -----------------------------------------------
+    def _place(self, shown):
+        p = self.parentWidget()
+        top = 46
+        self.resize(self.WIDTH, p.height() - top - 10)
+        x = p.width() - self.WIDTH - 10 if shown else p.width() + 4
+        return QPoint(x, top)
+
+    def slide_in(self, settings, animate=True):
+        self.load_values(settings)
+        self.open = True
+        start = self._place(False)
+        end = self._place(True)
+        self.show()
+        self.raise_()
+        if animate:
+            self.move(start)
+            self._anim.stop()
+            self._anim.setStartValue(start)
+            self._anim.setEndValue(end)
+            self._anim.start()
+        else:
+            self.move(end)
+
+    def slide_out(self, animate=True):
+        if not self.open:
+            return
+        self.open = False
+        if animate and self.isVisible():
+            self._anim.stop()
+            self._anim.setStartValue(self.pos())
+            self._anim.setEndValue(self._place(False))
+            self._anim.start()
+        else:
+            self.hide()
+        self.closed.emit()
+
+    def _anim_done(self):
+        if not self.open:
+            self.hide()
+
+    def reposition(self):
+        if self.open:
+            self.move(self._place(True))
+
+    def save(self):
+        clean = settings_mod.save(self.values())
+        self.settings = clean
+        self.saved.emit(clean)
+        self.slide_out()
+
+    def cancel(self):
+        self.preview.emit(self.settings)  # undo any live preview
+        self.slide_out()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        p.setBrush(theme.with_alpha(theme.BG, 240))
+        p.setPen(QPen(theme.with_alpha(self.accent, 170), 1.2))
+        p.drawPolygon(chamfer_path(r, 14))
+        p.setPen(QPen(self.accent, 3))
+        p.drawLine(r.topLeft() + QPointF(14, 0), r.topLeft() + QPointF(80, 0))
+        p.end()
