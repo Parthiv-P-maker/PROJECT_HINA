@@ -66,7 +66,7 @@ class SettingsPanel(QWidget):
 
         self.ai_model = QComboBox()
         self.ai_model.setEditable(True)
-        self.ai_model.addItems(["qwen2.5:3b", "qwen2.5:7b", "llama3.2:3b", "phi3:mini"])
+        self.ai_model.addItems(settings_mod.SUGGESTED_MODELS)
         form.addRow("AI MODEL (OLLAMA)", self.ai_model)
 
         self.local_only = QCheckBox("Local only (offline voice)")
@@ -169,16 +169,7 @@ class SettingsPanel(QWidget):
     def load_values(self, settings):
         self.settings = dict(settings)
         s = self.settings
-        installed = []
-        try:
-            import core.ai_engine as ai_engine
-            installed = ai_engine.installed_models()
-        except Exception:
-            pass
-        if installed:  # only offer models Ollama actually has (others answer 404)
-            self.ai_model.clear()
-            self.ai_model.addItems(installed)
-        self.ai_model.setCurrentText(s["ai_model"])
+        self._fill_models(s["ai_model"])
         self.local_only.setChecked(bool(s["local_only"]))
         self.tts_voice.setCurrentText(s["tts_voice"])
         self.whisper.setCurrentText(s["whisper_model"])
@@ -197,7 +188,7 @@ class SettingsPanel(QWidget):
     def values(self):
         out = dict(self.settings)
         out.update(
-            ai_model=self.ai_model.currentText().strip() or settings_mod.DEFAULTS["ai_model"],
+            ai_model=self.model_name(),
             local_only=self.local_only.isChecked(),
             tts_voice=self.tts_voice.currentText().strip() or settings_mod.DEFAULTS["tts_voice"],
             whisper_model=self.whisper.currentText(),
@@ -252,6 +243,36 @@ class SettingsPanel(QWidget):
         self.refresh_memory()
         self.memory_changed.emit("Conversation history cleared.")
         return True
+
+    NOT_INSTALLED = " (not installed)"
+
+    def _fill_models(self, current):
+        """Installed models first; suggestions Ollama doesn't have are marked (they'd answer 404)."""
+        installed = []
+        try:
+            import core.ai_engine as ai_engine
+            installed = ai_engine.installed_models()
+        except Exception:
+            pass
+        items = list(installed) or list(settings_mod.SUGGESTED_MODELS)
+        if installed:
+            items += [m + self.NOT_INSTALLED for m in settings_mod.SUGGESTED_MODELS if m not in installed]
+        self.ai_model.clear()
+        self.ai_model.addItems(items)
+        self.ai_model.setToolTip("Installed in Ollama: " + (", ".join(installed) or "unknown (is Ollama running?)"))
+        at = self.ai_model.findText(current)
+        if at < 0:
+            at = self.ai_model.findText(current + self.NOT_INSTALLED)
+        if at >= 0:
+            self.ai_model.setCurrentIndex(at)
+        else:
+            self.ai_model.setEditText(current)
+
+    def model_name(self):
+        name = self.ai_model.currentText().strip()
+        if name.endswith(self.NOT_INSTALLED):
+            name = name[:-len(self.NOT_INSTALLED)].strip()
+        return name or settings_mod.DEFAULTS["ai_model"]
 
     def _set_accent(self, hex_):
         self._accent = hex_

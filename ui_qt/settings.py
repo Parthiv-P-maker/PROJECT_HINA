@@ -33,6 +33,7 @@ DEFAULTS = {
     "private_mode": False,        # True: don't record conversation history or new facts
 }
 
+SUGGESTED_MODELS = ["qwen2.5:3b", "qwen2.5:7b", "llama3.2:3b", "phi3:mini"]
 WHISPER_MODELS = ["auto", "tiny.en", "base.en", "small.en", "medium.en", "large-v3"]
 TTS_VOICES = [
     "en-US-AriaNeural", "en-US-JennyNeural", "en-US-GuyNeural", "en-US-DavisNeural",

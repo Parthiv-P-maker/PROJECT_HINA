@@ -519,3 +519,39 @@ def test_missing_model_shows_in_status_and_console(window, monkeypatch):
     window._on_ai_status(False)
     text = window.console.plain_text()
     assert "qwen2.5:7b isn't installed" in text and text.count("isn't installed") == 1
+
+
+def test_model_list_marks_models_ollama_does_not_have(window, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "installed_models", lambda: ["qwen2.5:3b", "mistral:7b"])
+    window.toggle_settings()
+    combo = window.settings_panel.ai_model
+    items = [combo.itemText(i) for i in range(combo.count())]
+    assert items[:2] == ["qwen2.5:3b", "mistral:7b"]
+    assert "qwen2.5:7b (not installed)" in items and "qwen2.5:3b (not installed)" not in items
+    combo.setCurrentIndex(items.index("qwen2.5:7b (not installed)"))
+    assert window.settings_panel.values()["ai_model"] == "qwen2.5:7b"
+
+
+def test_saved_model_shows_in_the_list_and_unknown_names_are_kept(window, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "installed_models", lambda: ["qwen2.5:3b"])
+    window.settings_panel._fill_models("qwen2.5:7b")
+    assert window.settings_panel.ai_model.currentText() == "qwen2.5:7b (not installed)"
+    window.settings_panel._fill_models("my-custom:1b")
+    assert window.settings_panel.model_name() == "my-custom:1b"
+
+
+def test_changing_the_model_rechecks_the_ai_straight_away(window, qtbot, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "MODEL", ai_engine.MODEL)
+    checks = []
+    monkeypatch.setattr(window, "check_ai", lambda: checks.append(ai_engine.MODEL))
+    window._reported_missing_model = "qwen2.5:7b"
+    window.toggle_settings()
+    window.settings_panel.ai_model.setEditText("llama3.2:3b")
+    qtbot.mouseClick(window.settings_panel.save_btn, Qt.LeftButton)
+    assert checks == ["llama3.2:3b"]
+    assert "AI model set to llama3.2:3b" in window.console.plain_text()
+    window._on_ai_status(True)
+    assert "AI model online" not in window.console.plain_text()  # the old warning was reset on save
