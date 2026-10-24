@@ -503,6 +503,9 @@ class HinaWindow(QWidget):
                                         f"Choose another in settings or run: ollama pull {missing}", "warn")
             return
         self.status.ai.set("ONLINE" if ok else "OFFLINE", "ok" if ok else "warn")
+        if ok and self._reported_missing_model:
+            self._reported_missing_model = None
+            self.console.add_system("AI model online.", "ok")
 
     def _ambient_tick(self, now=None):
         minutes = int(self.settings.get("ambient_minutes") or 0)
@@ -560,12 +563,19 @@ class HinaWindow(QWidget):
     def _on_settings_saved(self, s):
         s = dict(s, compact=self.compact, window_pos=self.settings.get("window_pos"))
         was_private = bool(self.settings.get("private_mode"))
+        model_changed = self.settings.get("ai_model") != s.get("ai_model")
         self.apply_settings(s)
         settings_mod.save(s)
         self.console.add_system("Configuration saved.", "ok")
         if bool(s.get("private_mode")) != was_private:
             self.console.add_system("Private mode on: nothing new is recorded." if s.get("private_mode")
                                     else "Private mode off: history recording resumed.", "warn")
+        if model_changed:
+            # re-check now rather than leaving the old ONLINE / NO MODEL up until the next 15 s check
+            self._reported_missing_model = None
+            self.status.ai.set("CHECKING", "dim")
+            self.console.add_system(f"AI model set to {s.get('ai_model')}.")
+            self.check_ai()
 
     def toggle_settings(self):
         if self.settings_panel.open:
