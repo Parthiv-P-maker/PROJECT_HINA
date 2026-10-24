@@ -24,6 +24,7 @@ TIERS = {
     "delete_file": CONFIRM,
     "shutdown": CONFIRM,
     "restart_computer": CONFIRM,
+    "forget_facts": CONFIRM,     # forgetting several remembered facts at once (tools/recall.py)
     "run_shell": BLOCKED,
 }
 
@@ -59,7 +60,7 @@ def _execute(action, target, run):
 
 
 def _question(action, target):
-    verb = {"close_app": "close", "restart_app": "restart"}.get(action, action.replace("_", " "))
+    verb = {"close_app": "close", "restart_app": "restart", "forget_facts": "forget"}.get(action, action.replace("_", " "))
     return f"Should I {verb} {target}? (yes/no) 🌸".replace("  ", " ")
 
 

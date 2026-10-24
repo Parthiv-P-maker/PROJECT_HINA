@@ -1,13 +1,8 @@
 import random
 
+from core.conversation import UNKNOWN_REPLIES as _UNKNOWN_REPLIES
 from tools import registry
 from tools.registry import DispatchResult  # noqa: F401  (gui and tests import it from here)
-
-_UNKNOWN_REPLIES = [
-    "Hmm, I don't know that one yet 🌸",
-    "Hina is still learning! 🎀",
-    "That's a new one for me ✨",
-]
 
 
 def dispatch_command(command, output_var=None, output_label=None, app=None):

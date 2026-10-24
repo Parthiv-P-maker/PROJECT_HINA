@@ -67,6 +67,25 @@ Hina currently remembers:
 * Favorite applications
 * Recently opened applications
 * Recently accessed files
+* The conversation itself (restored in the HUD console after a restart)
+* Your name: `my name is Malu` / `call me Malu`, and `what's my name?`
+* Facts you ask her to keep: `remember that my sister is called Maya`,
+  `what do you know about me?`, `forget Maya` (forgetting several facts asks first)
+
+Everything lives in `%APPDATA%\ProjectHina\` (set `HINA_DATA_DIR` to move it):
+`user_profile.json` (name, apps, favourites; the old `memory/user_profile.json` is
+copied there on first run) and `hina_memory.db` (SQLite: history, a rolling summary
+of older turns, facts). **Private mode** in the HUD settings stops anything new
+being recorded; the settings' Memory section also lists and deletes facts and
+clears the history.
+
+### Chat mode
+
+Anything that isn't a command (after Ollama's tool calling has had a go) is a real
+conversation with the local model: a calm, J.A.R.V.I.S.-style persona that knows
+your name, the time, your recent apps, the last ~10 exchanges, a summary of older
+ones and the facts relevant to what you said. If Ollama isn't running Hina answers
+instantly with a short canned reply instead.
 
 Example:
 
@@ -187,7 +206,7 @@ project_hina/
 | Edge-TTS      | Voice synthesis           |
 | Pygame        | Audio playback            |
 | Keyboard      | Global hotkeys            |
-| JSON          | Persistent memory storage |
+| JSON / SQLite | Profile, history and facts |
 | Threading     | Background task execution |
 
 ---

@@ -30,6 +30,7 @@ DEFAULTS = {
     "compact": False,
     "window_pos": None,           # [x, y]
     "show_on_start": True,
+    "private_mode": False,        # True: don't record conversation history or new facts
 }
 
 WHISPER_MODELS = ["auto", "tiny.en", "base.en", "small.en", "medium.en", "large-v3"]
