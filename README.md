@@ -55,6 +55,7 @@ Rather than functioning solely as a command executor, Hina is designed as an evo
 * Spoken assistant responses
 * Countdown voice announcements
 * Startup greeting interaction
+* **Voice input**: click the 🎤 button (or press `Ctrl+M`), speak, and Hina transcribes it offline with faster-whisper (`small.en` on an NVIDIA GPU, `base.en` on CPU, downloaded on first use; override with `HINA_STT_MODEL`). Spoken maths works ("calculate 25 times 12"), and your saved name is spelled correctly and runs it like typed input. Recording stops after a pause; click ■ to cancel. Hina won't listen while she is speaking. Needs `sounddevice` and a microphone; without them she says so politely. Check your mic with `python -m core.stt`, and pick a different one with `HINA_MIC_DEVICE` (index or part of its name).
 
 ---
 
@@ -149,6 +150,7 @@ project_hina/
 │   ├── assistant.py
 │   ├── dispatcher.py
 │   ├── command_router.py
+│   ├── stt.py
 │   ├── startup.py
 │   ├── countdown.py
 │   └── personality_engine.py
@@ -211,7 +213,16 @@ pip install -r requirements.txt
 
 ## 3. Launch Hina
 
-### GUI Mode
+### HUD Mode (new, PySide6)
+
+```bash
+python hina.py
+```
+
+`python hina.py --classic` (or `python gui.py`) starts the old customtkinter window,
+which stays as a fallback. `hina.py` also falls back to it if PySide6 isn't installed.
+
+### Classic GUI Mode
 
 ```bash
 python gui.py
@@ -230,6 +241,55 @@ python main.py
 | Action                  | Shortcut   |
 | ----------------------- | ---------- |
 | Toggle Assistant Window | `Ctrl + H` |
+| Push-to-talk (start / stop) | `Ctrl + M` |
+| Hide window / close settings | `Esc` |
+
+Both hotkeys can be changed in the HUD's settings panel.
+
+---
+
+# 🛰 HUD Interface (`ui_qt/`)
+
+A Qt 6 (PySide6) interface in a J.A.R.V.I.S. style: a frameless, translucent,
+always-on-top HUD with a live arc-reactor core.
+
+![HUD idle](docs/screenshots/hud_idle.png)
+
+| Listening | Thinking | Speaking |
+| --- | --- | --- |
+| ![](docs/screenshots/hud_listening.png) | ![](docs/screenshots/hud_thinking.png) | ![](docs/screenshots/hud_speaking.png) |
+
+| Confirmation | Settings | Compact |
+| --- | --- | --- |
+| ![](docs/screenshots/hud_confirm.png) | ![](docs/screenshots/hud_settings.png) | ![](docs/screenshots/hud_compact.png) |
+
+* **Core**: a 60 fps QPainter arc reactor. It turns slowly when idle, follows the live mic level
+  when listening, spins amber segments while thinking, and shows a waveform with ripples while speaking.
+* **Console**: scrollback of your commands, Hina's replies (typewriter reveal) and system lines.
+* **HUD panels**: clock, CPU/RAM/battery gauges, CPU/RAM telemetry graph (psutil),
+  and status for the Ollama link, model, mic, voice, mode and core.
+* **Confirmations**: CONFIRM / DENY buttons appear in the title strip for "Should I?" actions.
+* **Window**: drag by the title strip; the position and the compact/expanded choice are remembered.
+  `—` hides the window to the tray, `✕` shuts Hina down. The tray icon offers show/hide, settings and quit.
+* **Settings** (gear): saved to `%APPDATA%\ProjectHina\settings.json`, next to the action log.
+
+| Setting | Wired to |
+| --- | --- |
+| AI model | `core.ai_engine.MODEL` (live) |
+| Local only | turns off cloud edge-tts and uses the offline pyttsx3 voice |
+| TTS voice | `voice.VOICE` (edge-tts voice name) |
+| Whisper model | next mic use (`auto` = small.en on GPU, base.en on CPU) |
+| Hotkeys, accent, opacity, always-on-top | live |
+| Ambient thoughts | how often idle "thoughts" appear in the console (0 = off) |
+| Search folders | written to `search_folders.txt`, which file search already reads |
+
+The classic `gui.py` window does not read `settings.json`.
+
+Drop Orbitron / Rajdhani / JetBrains Mono `.ttf` files into `ui_qt/fonts/` to use them.
+Otherwise the HUD uses Bahnschrift, Cascadia Mono or Consolas.
+
+Regenerate the screenshots headlessly with `python -m ui_qt.screenshots`.
+Tests: `python -m pytest tests -q` (the Qt tests run offscreen and need `pytest-qt`).
 
 ---
 
@@ -320,3 +380,7 @@ Some systems are experimental and may evolve significantly as future AI, voice, 
 ### **Hina V1 — Stable Architecture Build**
 
 The project has successfully transitioned from an experimental prototype into a structured, modular desktop assistant framework prepared for long-term expansion and AI integration.
+
+## Adding a command
+
+Commands live in a single registry: write one `@tool(...)` function in `tools/` and the parser, AI tool schema, router, dispatcher and permission tier all pick it up. See [tools/README.md](tools/README.md).
