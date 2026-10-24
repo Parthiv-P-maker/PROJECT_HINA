@@ -123,8 +123,11 @@ class TestToolCalling:
         assert "Invalid" in result
 
     def test_close_tool_cannot_be_used_for_injection_or_system_processes(self, machine):
-        assert "Couldn't" in ai_engine._call_tool("close_app", {"name": "x & shutdown /s"})
-        assert "Couldn't" in ai_engine._call_tool("close_app", {"name": "explorer"})
+        from core import permissions
+        ai_engine._call_tool("close_app", {"name": "x & shutdown /s"})
+        assert "Couldn't" in permissions.resolve(True)
+        ai_engine._call_tool("close_app", {"name": "explorer"})
+        assert "Couldn't" in permissions.resolve(True)
         assert machine.os_calls["run"] == []
 
     def test_unknown_tool_name_is_ignored(self, fake_ollama):

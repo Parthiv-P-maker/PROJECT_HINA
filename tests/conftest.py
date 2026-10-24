@@ -41,6 +41,11 @@ def isolate_machine(tmp_path, monkeypatch):
     import memory
     import voice
 
+    # 0. Action log / user data go to a temp dir; no pending confirmation leaks between tests.
+    monkeypatch.setenv("HINA_DATA_DIR", str(tmp_path / "hina_data"))
+    from core import permissions
+    permissions.cancel_pending("test-reset")
+
     # 1. Memory goes to a throwaway file.
     profile = tmp_path / "user_profile.json"
     monkeypatch.setattr(memory, "PROFILE_PATH", str(profile))

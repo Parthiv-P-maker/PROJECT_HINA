@@ -4,6 +4,8 @@ import os
 import time
 from pathlib import Path
 
+from utils.paths import user_data_dir
+
 SKIP_DIRS = {
     ".git", "node_modules", "__pycache__", ".venv", "venv", "site-packages",
     "appdata", "$recycle.bin", "windows", "program files", "program files (x86)",
@@ -12,13 +14,22 @@ MAX_SECONDS = 8
 MAX_DEPTH = 6
 
 
+def _extra_roots():
+    """Project folders the user added, one path per line in <data dir>/search_folders.txt."""
+    try:
+        with open(os.path.join(user_data_dir(), "search_folders.txt"), encoding="utf-8") as file:
+            return [Path(line.strip()) for line in file if line.strip() and not line.startswith("#")]
+    except OSError:
+        return []
+
+
 def search_roots():
-    """Folders worth searching: the user's common folders plus the project's parent."""
+    """Desktop, Documents, Downloads (also under OneDrive) plus any configured project folders."""
     home = Path.home()
-    names = ["Desktop", "Documents", "Downloads", "Pictures", "Videos", "Music", "Projects"]
+    names = ["Desktop", "Documents", "Downloads"]
     roots = [home / n for n in names]
-    roots += [home / "OneDrive" / n for n in ("Desktop", "Documents")]
-    roots.append(Path(__file__).resolve().parents[2])
+    roots += [home / "OneDrive" / n for n in names]
+    roots += _extra_roots()
     seen, result = set(), []
     for root in roots:
         key = str(root).lower()

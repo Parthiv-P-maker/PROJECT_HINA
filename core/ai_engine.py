@@ -426,13 +426,17 @@ def _call_tool(tool_name, args):
     """Execute the Python action behind a tool name. Returns the reply string, or None."""
     import actions
     import memory as mem
+    from core import permissions
 
     args = args or {}
 
     handlers = {
         "open_app": lambda: actions.open_app(args.get("name", "")),
-        "close_app": lambda: actions.close_app(args.get("name", "")),
-        "restart_app": lambda: actions.restart_app(args.get("name", "")),
+        # Destructive: goes through the permission tier (asks "Should I?" first).
+        "close_app": lambda: permissions.run_action(
+            "close_app", args.get("name", ""), lambda: actions.close_app(args.get("name", ""))),
+        "restart_app": lambda: permissions.run_action(
+            "restart_app", args.get("name", ""), lambda: actions.restart_app(args.get("name", ""))),
         "tell_time": lambda: actions.tell_time(),
         "tell_date": lambda: actions.tell_date(),
         "battery_status": lambda: actions.battery_status(),
@@ -501,6 +505,10 @@ def resolve_tool_call(raw_command, context=None):
     base_reply = _call_tool(name, raw_args)
     if base_reply is None:
         return None
+
+    from core import permissions
+    if permissions.has_pending():
+        return base_reply  # it's a "Should I?" question: show it as-is
 
     target = raw_args.get("name") or raw_args.get("query") or raw_args.get("expression") or ""
     return rewrite_action_reply(base_reply, name, target, context)

@@ -20,6 +20,7 @@ from actions import (
     search_chatgpt,
 )
 from core.assistant import generate_response
+from core import permissions
 from core.mode_manager import launch_mode
 from core.countdown import voiced_countdown
 from core.startup import build_goodbye_message
@@ -39,12 +40,35 @@ class DispatchResult:
     reply: str = ""
     should_exit: bool = False
     exit_delay_ms: int = 0
+    needs_confirmation: bool = False
+
+
+def _ask_or_reply(reply):
+    """A reply that may be a pending "Should I?" question (shows Yes/No buttons)."""
+    return DispatchResult(reply=reply, needs_confirmation=permissions.has_pending())
+
+
+def _close_reply(app_name):
+    result = close_app(app_name)
+    if "ouldn't" in result:
+        return result
+    return generate_response("close_app", app_name)
+
+
+def _restart_reply(app_name):
+    result = restart_app(app_name)
+    if "ouldn't" in result:
+        return result
+    return generate_response("restart_app", app_name)
 
 
 def dispatch_command(command, output_var=None, output_label=None, app=None):
     """Route a normalized command to the appropriate action handler."""
     if command.startswith("ai_reply::"):
-        return DispatchResult(reply=command[len("ai_reply::"):])
+        return _ask_or_reply(command[len("ai_reply::"):])
+
+    if command in ("confirm yes", "confirm no"):
+        return DispatchResult(reply=permissions.resolve(command == "confirm yes"))
 
     if command.startswith("set name "):
         name = command.replace("set name ", "").strip()
@@ -60,15 +84,16 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
     if command.startswith("open file "):
         file_name = command.replace("open file ", "").strip()
         add_recent_file(file_name)
-        return DispatchResult(reply=search_and_open_file(file_name))
+        return DispatchResult(reply=permissions.run_action(
+            "open_file", file_name, lambda: search_and_open_file(file_name)))
 
     if command.startswith("open "):
         app_name = command.replace("open ", "").strip()
         favorite_app = get_favorite_app(app_name)
         if favorite_app:
             app_name = favorite_app
-        result = open_app(app_name)
-        if "ouldn't" in result:
+        result = permissions.run_action("open_app", app_name, lambda: open_app(app_name))
+        if "ouldn't" in result or "couldn't find" in result:
             return DispatchResult(reply=result)
         add_recent_app(app_name)
         return DispatchResult(reply=generate_response("open_app", app_name))
@@ -78,10 +103,12 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
         return DispatchResult(reply=launch_mode(mode_name))
 
     if command.startswith("find file "):
-        return DispatchResult(reply=find_file(command.replace("find file ", "").strip()))
+        name = command.replace("find file ", "").strip()
+        return DispatchResult(reply=permissions.run_action("find_file", name, lambda: find_file(name)))
 
     if command.startswith("find folder "):
-        return DispatchResult(reply=find_folder(command.replace("find folder ", "").strip()))
+        name = command.replace("find folder ", "").strip()
+        return DispatchResult(reply=permissions.run_action("find_folder", name, lambda: find_folder(name)))
 
     if command.startswith("favorite app "):
         data = command.replace("favorite app ", "").split(" as ")
@@ -93,17 +120,13 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
 
     if command.startswith("close "):
         app_name = command.replace("close ", "").strip()
-        result = close_app(app_name)
-        if "ouldn't" in result:
-            return DispatchResult(reply=result)
-        return DispatchResult(reply=generate_response("close_app", app_name))
+        return _ask_or_reply(permissions.run_action(
+            "close_app", app_name, lambda: _close_reply(app_name)))
 
     if command.startswith("restart "):
         app_name = command.replace("restart ", "").strip()
-        result = restart_app(app_name)
-        if "ouldn't" in result:
-            return DispatchResult(reply=result)
-        return DispatchResult(reply=generate_response("restart_app", app_name))
+        return _ask_or_reply(permissions.run_action(
+            "restart_app", app_name, lambda: _restart_reply(app_name)))
 
     if command.startswith("timer "):
         seconds = try_parse_int(command.replace("timer ", ""))

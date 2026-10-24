@@ -74,6 +74,7 @@ def normalize_command(command):
 
     elif _FIND.match(command):
         file_name = _drop_my(_FIND.sub("", command, count=1))
+        file_name = re.sub(r"^file\s+", "", file_name)
         return "find file " + file_name
 
     # App controls

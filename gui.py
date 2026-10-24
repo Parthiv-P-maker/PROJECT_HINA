@@ -74,9 +74,25 @@ def _set_busy(busy, label="thinking..."):
     mic_btn.configure(text="■" if _listening else "🎤")
 
 
+def _show_confirm_buttons(show):
+    """Yes/No buttons live in the title bar so the fixed-size window doesn't change."""
+    if show:
+        no_btn.pack(side="right", padx=(0, 6))
+        yes_btn.pack(side="right", padx=(0, 4))
+    else:
+        yes_btn.pack_forget()
+        no_btn.pack_forget()
+
+
+def _answer(text):
+    if not _busy:
+        _start_command(text)
+
+
 def _finish_command(result):
     """Runs on the Tk thread: show the reply and clear the busy state."""
     _set_busy(False)
+    _show_confirm_buttons(getattr(result, "needs_confirmation", False))
 
     if result.reply:
         hina_reply(result.reply, output_var, output_label, app)
@@ -332,6 +348,18 @@ close_btn = ctk.CTkButton(
     command=lambda: toggle_window(app, entry)
 )
 close_btn.pack(side="right")
+
+# Yes / No for "Should I?" questions (hidden until one is pending)
+yes_btn = ctk.CTkButton(
+    title_bar, text="Yes", width=46, height=28, corner_radius=8,
+    fg_color=C_SAKURA_DIM, hover_color=C_SAKURA, text_color=C_BG_DEEP,
+    font=("Segoe UI", 12), command=lambda: _answer("yes")
+)
+no_btn = ctk.CTkButton(
+    title_bar, text="No", width=46, height=28, corner_radius=8,
+    fg_color=C_BG_CARD, hover_color="#4a2040", text_color=C_TEXT_SUB,
+    font=("Segoe UI", 12), command=lambda: _answer("no")
+)
 
 title_bar.bind("<ButtonPress-1>", lambda e: start_drag(app, e))
 title_bar.bind("<B1-Motion>", lambda e: do_drag(app, e))

@@ -2,6 +2,7 @@ from parser import normalize_command
 from core.ai_loader import get_ai_engine
 from core.context_manager import context_manager
 import threading
+from core import permissions
 
 KNOWN_COMMAND_PREFIXES = [
     "tell time",
@@ -31,6 +32,8 @@ KNOWN_COMMAND_PREFIXES = [
     "what do you think",
     "im tired",
     "tell me something",
+    "confirm yes",
+    "confirm no",
     "bye",
     "exit",
 ]
@@ -48,6 +51,13 @@ def route_command(raw_command):
     AI fallback is only attempted if command is not recognized via pattern matching.
     """
     clean_text = raw_command.strip().lower()
+    # A pending "Should I?" gets first claim on yes/no; anything else drops it.
+    if permissions.has_pending():
+        answer = permissions.parse_answer(clean_text)
+        if answer is not None:
+            return "confirm yes" if answer else "confirm no"
+        permissions.cancel_pending("ignored")
+
     normalized = normalize_command(clean_text)
 
     if _is_known_command(normalized):

@@ -49,14 +49,18 @@ class TestApps:
         assert memory.get_recent_apps() == []
 
     def test_close_success_and_failure(self, machine):
-        assert reply("close spotify")
+        assert "Should I" in reply("close spotify")
+        assert machine.os_calls["run"] == []
+        assert reply("confirm yes")
         assert machine.os_calls["run"][-1][:3] == ["taskkill", "/IM", "Spotify.exe"]
-        assert "Couldn't close" in reply("close explorer")
+        reply("close explorer")
+        assert "Couldn't close" in reply("confirm yes")
 
     def test_restart(self, machine, monkeypatch):
         import actions
         monkeypatch.setattr(actions.time, "sleep", lambda s: None)
-        assert reply("restart chrome")
+        assert "Should I" in reply("restart chrome")
+        assert reply("confirm yes")
 
     def test_mode(self, machine):
         assert reply("mode coding")
