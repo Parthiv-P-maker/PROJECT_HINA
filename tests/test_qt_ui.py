@@ -247,6 +247,49 @@ def test_mic_runs_heard_text_as_a_command(window, qtbot):
     assert not window.mic_btn.isChecked()
 
 
+@pytest.mark.parametrize("button", ["yes", "no"])
+def test_spoken_bye_asks_before_shutting_down(window, qtbot, monkeypatch, button):
+    """Whisper can mishear unclear audio as 'bye'; voice must never quit straight away."""
+    quit_calls = []
+    monkeypatch.setattr(window, "quit_app", lambda: quit_calls.append(True))
+    window.bridge._speech = _FakeSpeech("Bye.")
+    window.toggle_listening()
+    qtbot.waitUntil(lambda: not window.bridge.listening, timeout=3000)
+    window.console.finish()
+    assert "Shut down Hina?" in window.console.plain_text()
+    assert window.yes_btn.isVisible() and not window.bridge.busy
+    qtbot.wait(300)
+    assert not quit_calls
+
+    qtbot.mouseClick(window.yes_btn if button == "yes" else window.no_btn, Qt.LeftButton)
+    wait_idle(qtbot, window)
+    assert not window.yes_btn.isVisible()
+    if button == "yes":
+        qtbot.waitUntil(lambda: bool(quit_calls), timeout=4000)
+    else:
+        assert "Staying online" in window.console.plain_text()
+        qtbot.wait(300)
+        assert not quit_calls
+
+
+def test_other_command_after_spoken_bye_drops_the_question(window, qtbot):
+    window.bridge._speech = _FakeSpeech("bye")
+    window.toggle_listening()
+    qtbot.waitUntil(lambda: not window.bridge.listening, timeout=3000)
+    submit(qtbot, window, "tell time")
+    wait_idle(qtbot, window)
+    assert "time is" in window.console.last_line().lower()
+    assert not window._pending_exit and not window.yes_btn.isVisible()
+
+
+def test_typed_bye_still_quits_directly(window, qtbot, monkeypatch):
+    quit_calls = []
+    monkeypatch.setattr(window, "quit_app", lambda: quit_calls.append(True))
+    submit(qtbot, window, "bye")
+    wait_idle(qtbot, window)
+    qtbot.waitUntil(lambda: bool(quit_calls), timeout=4000)
+
+
 def test_mic_error_is_reported(window, qtbot):
     window.bridge._speech = _FakeSpeech(error="No microphone found")
     window.toggle_listening()

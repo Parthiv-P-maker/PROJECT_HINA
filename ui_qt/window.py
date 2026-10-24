@@ -9,6 +9,7 @@ HinaWindow: the frameless, translucent, always-on-top HUD.
 """
 
 import random
+import re
 import threading
 import time
 from datetime import datetime
@@ -52,6 +53,16 @@ AMBIENT_LINES = [
     "You've been focused for a while. Consider a short break.",
     "Idle cycle. Say the word and I'll get to work.",
 ]
+
+
+# Spoken phrases that would shut Hina down. Whisper sometimes "hears" one of these
+# from unclear audio, so voice never quits without a yes.
+EXIT_PHRASES = {"bye", "bye bye", "goodbye", "good bye", "exit", "quit",
+                "bye hina", "goodbye hina", "exit hina", "quit hina"}
+
+
+def is_exit_phrase(text):
+    return re.sub(r"[^a-z ]", "", (text or "").lower()).strip() in EXIT_PHRASES
 
 
 def greeting(name=None, now=None):
@@ -101,6 +112,7 @@ class HinaWindow(QWidget):
         self.state = "idle"
         self.voice_status = ""
         self.compact = bool(self.settings.get("compact"))
+        self._pending_exit = False
         self.last_activity = time.time()
         self.last_ambient = 0.0
         self._hotkey_handles = []
@@ -307,11 +319,33 @@ class HinaWindow(QWidget):
     def start_command(self, text):
         """Shared by typed and spoken input."""
         self._touch()
+        if self._pending_exit and not self.bridge.busy:
+            return self._resolve_exit(text)
         if not self.bridge.submit(text):
             return False
         self.console.add_user(text)
         self.show_confirm(False)
         self.refresh_state()
+        return True
+
+    def ask_exit(self, heard):
+        """A spoken goodbye: ask before shutting down."""
+        self._pending_exit = True
+        self.console.add_user(heard)
+        self.console.add_reply("Shut down Hina? Say yes or no.")
+        self.show_confirm(True)
+
+    def _resolve_exit(self, text):
+        from core import permissions
+        self._pending_exit = False
+        self.show_confirm(False)
+        answer = permissions.parse_answer(text)
+        if answer is None:  # something else: drop the question and run it
+            return self.start_command(text)
+        self.console.add_user(text)
+        if answer:
+            return self.bridge.submit("bye")
+        self.console.add_reply("Understood. Staying online.")
         return True
 
     def answer(self, yes):
@@ -379,6 +413,8 @@ class HinaWindow(QWidget):
             self.status.mic.set("ERROR", "bad")
         elif not heard.text:
             self.console.add_system("No speech detected. Try again.", "warn")
+        elif is_exit_phrase(heard.text) and not self._pending_exit:
+            self.ask_exit(heard.text)
         else:
             self.start_command(heard.text)
         self.refresh_state()

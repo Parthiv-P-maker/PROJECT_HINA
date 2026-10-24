@@ -30,7 +30,9 @@ GPU_MODEL, CPU_MODEL = "small.en", "base.en"
 COMMAND_PROMPT = ("Commands for Hina: tell time, tell date, open chrome, close notepad, "
                   "calculate 25 times 12, find file, find folder, open file, set name, "
                   "search google, search chatgpt, timer 5 minutes, countdown, cancel timer, "
-                  "mode focus, battery, disk usage, favorite app, bye.")
+                  "mode focus, battery, disk usage, favorite app.")
+# No "bye" in the prompt: on unclear audio Whisper tends to output the prompt's
+# last words, and "bye" shuts Hina down.
 
 MAX_RECORD_SECONDS = 12.0
 NO_SPEECH_TIMEOUT = 6.0     # give up if nobody says anything
