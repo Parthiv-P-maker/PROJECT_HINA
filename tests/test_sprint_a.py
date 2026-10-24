@@ -79,7 +79,6 @@ def test_dispatcher_find_file_and_unknown_app(monkeypatch):
     from core.dispatcher import dispatch_command
     monkeypatch.setattr(actions, "_search_files", lambda *a, **k: ["C:\\x\\notes.txt"])
     assert "notes.txt" in dispatch_command("find file notes").reply
-    monkeypatch.setattr("core.dispatcher.find_file", actions.find_file)
 
 
 def test_ollama_down_returns_fast(monkeypatch):

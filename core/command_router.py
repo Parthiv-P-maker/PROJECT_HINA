@@ -3,46 +3,14 @@ from core.ai_loader import get_ai_engine
 from core.context_manager import context_manager
 import threading
 from core import permissions
+from tools import registry
 
-KNOWN_COMMAND_PREFIXES = [
-    "tell time",
-    "tell date",
-    "battery",
-    "disk usage",
-    "calculate ",
-    "find file ",
-    "find folder ",
-    "open file ",
-    "open ",
-    "close ",
-    "restart ",
-    "timer ",
-    "cancel timer",
-    "countdown ",
-    "favorite app ",
-    "set name ",
-    "search google ",
-    "search chatgpt ",
-    "mode ",
-    "hello",
-    "how are you",
-    "who are you",
-    "thanks",
-    "what can you do",
-    "what do you think",
-    "im tired",
-    "tell me something",
-    "confirm yes",
-    "confirm no",
-    "bye",
-    "exit",
-]
+# Generated from the tool registry (tools/); kept for introspection.
+KNOWN_COMMAND_PREFIXES = registry.known_prefixes()
 
 
 def _is_known_command(normalized_command):
-    if normalized_command in KNOWN_COMMAND_PREFIXES:
-        return True
-    return any(normalized_command.startswith(prefix) for prefix in KNOWN_COMMAND_PREFIXES)
+    return registry.is_known_command(normalized_command)
 
 
 def route_command(raw_command):

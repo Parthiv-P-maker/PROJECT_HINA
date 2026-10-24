@@ -6,6 +6,7 @@ import time
 import requests
 
 from core.context_manager import context_manager
+from tools import registry
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -27,32 +28,8 @@ _CJK_RE = re.compile(
 )
 _NUMBER_RE = re.compile(r"\d+")
 
-KNOWN_NORMALIZED_COMMANDS = [
-    "tell time",
-    "tell date",
-    "battery",
-    "disk usage",
-    "calculate ",
-    "find file ",
-    "find folder ",
-    "open file ",
-    "open ",
-    "close ",
-    "restart ",
-    "timer ",
-    "cancel timer",
-    "countdown ",
-    "favorite app ",
-    "set name ",
-    "hello",
-    "how are you",
-    "who are you",
-    "thanks",
-    "what can you do",
-    "what do you think",
-    "im tired",
-    "tell me something",
-]
+# Generated from the tool registry (tools/).
+KNOWN_NORMALIZED_COMMANDS = registry.prompt_commands()
 
 SYSTEM_PROMPT = """
 You are Hina, an anime-inspired desktop assistant.
@@ -109,182 +86,7 @@ tools. If nothing fits, or the request is just conversation (greetings, small
 talk, questions about yourself), do not call any tool.
 """
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "open_app",
-            "description": "Open an application, program, or file on the user's computer by name.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "App or file name, e.g. 'chrome', 'notepad', 'notes.txt'",
-                    }
-                },
-                "required": ["name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "close_app",
-            "description": "Close a running application by name.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "App name, e.g. 'spotify'"}
-                },
-                "required": ["name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "restart_app",
-            "description": "Restart an application by name (close then reopen it).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "App name, e.g. 'vscode'"}
-                },
-                "required": ["name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "tell_time",
-            "description": "Tell the user the current time.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "tell_date",
-            "description": "Tell the user today's date.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "battery_status",
-            "description": "Report the laptop's current battery percentage and charging state.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "disk_usage",
-            "description": "Report free and total disk space.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "calculate",
-            "description": "Evaluate a math expression and return the result.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "expression": {
-                        "type": "string",
-                        "description": "A math expression, e.g. '25*12' or '(4+3)/2'",
-                    }
-                },
-                "required": ["expression"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "find_file",
-            "description": "Search the computer for a file by name.",
-            "parameters": {
-                "type": "object",
-                "properties": {"name": {"type": "string", "description": "File name to search for"}},
-                "required": ["name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "find_folder",
-            "description": "Search the computer for a folder by name.",
-            "parameters": {
-                "type": "object",
-                "properties": {"name": {"type": "string", "description": "Folder name to search for"}},
-                "required": ["name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "set_timer",
-            "description": "Start a countdown timer for a number of seconds.",
-            "parameters": {
-                "type": "object",
-                "properties": {"seconds": {"type": "integer", "description": "Duration in seconds"}},
-                "required": ["seconds"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "cancel_timer",
-            "description": "Cancel the currently running timer, if any.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_google",
-            "description": "Search Google for a query in the default browser.",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string", "description": "Search query"}},
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_chatgpt",
-            "description": "Open ChatGPT in the browser with a query.",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string", "description": "Query to ask ChatGPT"}},
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "set_name",
-            "description": "Remember the user's name for future greetings.",
-            "parameters": {
-                "type": "object",
-                "properties": {"name": {"type": "string", "description": "The user's name"}},
-                "required": ["name"],
-            },
-        },
-    },
-]
+TOOLS = registry.ai_schemas()  # generated from the tool registry (tools/)
 
 
 _health_lock = threading.Lock()
@@ -423,44 +225,8 @@ def rewrite_action_reply(base_reply, action, target="", context=None):
 
 
 def _call_tool(tool_name, args):
-    """Execute the Python action behind a tool name. Returns the reply string, or None."""
-    import actions
-    import memory as mem
-    from core import permissions
-
-    args = args or {}
-
-    handlers = {
-        "open_app": lambda: actions.open_app(args.get("name", "")),
-        # Destructive: goes through the permission tier (asks "Should I?" first).
-        "close_app": lambda: permissions.run_action(
-            "close_app", args.get("name", ""), lambda: actions.close_app(args.get("name", ""))),
-        "restart_app": lambda: permissions.run_action(
-            "restart_app", args.get("name", ""), lambda: actions.restart_app(args.get("name", ""))),
-        "tell_time": lambda: actions.tell_time(),
-        "tell_date": lambda: actions.tell_date(),
-        "battery_status": lambda: actions.battery_status(),
-        "disk_usage": lambda: actions.disk_usage(),
-        "calculate": lambda: actions.calculate(args.get("expression", "")),
-        "find_file": lambda: actions.find_file(args.get("name", "")),
-        "find_folder": lambda: actions.find_folder(args.get("name", "")),
-        "set_timer": lambda: actions.set_timer(int(args.get("seconds", 0))),
-        "cancel_timer": lambda: actions.cancel_timer(),
-        "search_google": lambda: actions.search_google(args.get("query", "")),
-        "search_chatgpt": lambda: actions.search_chatgpt(args.get("query", "")),
-        "set_name": lambda: mem.set_name(args.get("name", "")),
-    }
-
-    handler = handlers.get(tool_name)
-    if not handler:
-        logger.warning("Unknown tool requested by model: %s", tool_name)
-        return None
-
-    try:
-        return handler()
-    except Exception as exc:
-        logger.warning("Tool '%s' failed: %s", tool_name, exc)
-        return None
+    """Execute the registered tool behind a model-requested name. Returns the reply string, or None."""
+    return registry.call_ai(tool_name, args)
 
 
 def resolve_tool_call(raw_command, context=None):
