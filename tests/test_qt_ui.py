@@ -510,3 +510,12 @@ def test_settings_memory_section_deletes_facts_and_clears_history(window, qtbot)
     qtbot.mouseClick(panel.clear_history_btn, Qt.LeftButton)
     assert memory_store.turn_count() == 0
     assert "history cleared" in window.console.plain_text()
+
+
+def test_missing_model_shows_in_status_and_console(window, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "missing_model", lambda: "qwen2.5:7b")
+    window._on_ai_status(False)
+    window._on_ai_status(False)
+    text = window.console.plain_text()
+    assert "qwen2.5:7b isn't installed" in text and text.count("isn't installed") == 1

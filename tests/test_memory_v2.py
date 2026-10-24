@@ -307,3 +307,53 @@ class TestRealModelRegressions:
     def test_facts_are_quoted_as_the_users_words(self):
         messages = ai_engine.build_chat_messages("hi", {"name": "Malu"}, [], "", ["my birthday is on 3 March"])
         assert '"my birthday is on 3 March"' in messages[0]["content"]
+
+
+# ---- the configured model isn't installed (Ollama answers 404) ---------------------------
+
+class _Tags:
+    def __init__(self, names):
+        self.names = names
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"models": [{"name": n} for n in self.names]}
+
+
+class TestMissingModel:
+    @pytest.fixture
+    def only_3b(self, monkeypatch):
+        monkeypatch.setattr(ai_engine.requests, "get", lambda url, timeout: _Tags(["qwen2.5:3b"]))
+        monkeypatch.setattr(ai_engine.requests, "post", lambda *a, **k: pytest.fail("posted to a missing model"))
+
+    def test_missing_model_is_detected_and_nothing_is_posted(self, only_3b, monkeypatch):
+        monkeypatch.setattr(ai_engine, "MODEL", "qwen2.5:7b")
+        assert ai_engine.ollama_available() is False
+        assert ai_engine.missing_model() == "qwen2.5:7b"
+        assert ai_engine.installed_models() == ["qwen2.5:3b"]
+
+    def test_chat_says_why_it_cant_answer(self, only_3b, monkeypatch):
+        monkeypatch.setattr(ai_engine, "MODEL", "qwen2.5:7b")
+        reply = run("i study at tkm college of engineering").reply
+        assert "qwen2.5:7b" in reply and "ollama pull qwen2.5:7b" in reply
+
+    def test_switching_to_an_installed_model_works_without_waiting_for_the_cache(self, only_3b, monkeypatch):
+        monkeypatch.setattr(ai_engine, "MODEL", "qwen2.5:7b")
+        assert ai_engine.ollama_available() is False
+        monkeypatch.setattr(ai_engine, "MODEL", "qwen2.5:3b")
+        assert ai_engine.ollama_available() is True and ai_engine.missing_model() is None
+
+    def test_latest_tag_matches_bare_name(self, monkeypatch):
+        monkeypatch.setattr(ai_engine.requests, "get", lambda url, timeout: _Tags(["llama3.2:latest"]))
+        monkeypatch.setattr(ai_engine, "MODEL", "llama3.2")
+        assert ai_engine.ollama_available() is True
+
+
+@pytest.mark.parametrize("text", ["my college is TKM, remember that", "My college is TKM. Remember this!",
+                                  "my college is TKM please remember"])
+def test_remember_that_at_the_end(text, machine):
+    run(text)
+    facts = [f["text"] for f in memory_store.list_facts()]
+    assert len(facts) == 1 and facts[0].lower() == "my college is tkm" and "TKM" in facts[0]

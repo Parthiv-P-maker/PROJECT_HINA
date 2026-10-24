@@ -114,6 +114,7 @@ class HinaWindow(QWidget):
         self.voice_status = ""
         self.compact = bool(self.settings.get("compact"))
         self._pending_exit = False
+        self._reported_missing_model = None
         self.last_activity = time.time()
         self.last_ambient = 0.0
         self._hotkey_handles = []
@@ -487,6 +488,20 @@ class HinaWindow(QWidget):
         threading.Thread(target=run, daemon=True).start()
 
     def _on_ai_status(self, ok):
+        missing = None
+        if not ok:
+            try:
+                import core.ai_engine as ai_engine
+                missing = ai_engine.missing_model()
+            except Exception:
+                pass
+        if missing:
+            self.status.ai.set("NO MODEL", "warn")
+            if missing != self._reported_missing_model:
+                self._reported_missing_model = missing
+                self.console.add_system(f"AI model {missing} isn't installed in Ollama. "
+                                        f"Choose another in settings or run: ollama pull {missing}", "warn")
+            return
         self.status.ai.set("ONLINE" if ok else "OFFLINE", "ok" if ok else "warn")
 
     def _ambient_tick(self, now=None):
