@@ -456,3 +456,57 @@ def test_ambient_thought_after_idle(window):
     window.settings["ambient_minutes"] = 0
     window.last_ambient = 0
     assert not window._ambient_tick()
+
+
+# ---- memory v2: history + memory settings -------------------------------------
+
+def test_commands_are_recorded_and_restored_on_next_start(window, qtbot):
+    from core import memory_store
+    from ui_qt.window import HinaWindow
+    submit(qtbot, window, "tell time")
+    wait_idle(qtbot, window)
+    submit(qtbot, window, "blorp the flarn")
+    wait_idle(qtbot, window)
+    turns = memory_store.recent_turns()
+    assert [(t["user"], t["kind"]) for t in turns] == [("tell time", "command"), ("blorp the flarn", "chat")]
+    assert "time is" in turns[0]["reply"].lower()
+
+    w2 = HinaWindow(settings_mod.load(), tray=False, hotkeys=False)
+    qtbot.addWidget(w2)
+    assert w2.load_history() == 2
+    text = w2.console.plain_text()
+    assert "YOU   tell time" in text and "YOU   blorp the flarn" in text
+    assert "Restored 2 earlier exchanges" in text
+    w2.quit_app()
+
+
+def test_private_mode_setting_stops_recording(window, qtbot):
+    from core import memory_store
+    window.toggle_settings()
+    window.settings_panel.private_mode.setChecked(True)
+    qtbot.mouseClick(window.settings_panel.save_btn, Qt.LeftButton)
+    assert settings_mod.load()["private_mode"] is True
+    assert "Private mode on" in window.console.plain_text()
+    submit(qtbot, window, "tell time")
+    wait_idle(qtbot, window)
+    assert memory_store.turn_count() == 0
+
+
+def test_settings_memory_section_deletes_facts_and_clears_history(window, qtbot):
+    from core import memory_store
+    memory_store.add_fact("i like jazz")
+    memory_store.add_fact("i like tea")
+    memory_store.record_turn("hello", "Good evening.")
+    window.toggle_settings()
+    panel = window.settings_panel
+    assert [panel.facts.item(i).text() for i in range(panel.facts.count())] == ["I like jazz", "I like tea"]
+    assert "2 facts, 1 exchanges" in panel.memory_info.text()
+    panel.facts.item(0).setSelected(True)
+    qtbot.mouseClick(panel.delete_fact_btn, Qt.LeftButton)
+    assert [f["text"] for f in memory_store.list_facts()] == ["i like tea"]
+    assert "Forgot 1 fact." in window.console.plain_text()
+    qtbot.mouseClick(panel.clear_history_btn, Qt.LeftButton)
+    assert memory_store.turn_count() == 1, "first click only arms it"
+    qtbot.mouseClick(panel.clear_history_btn, Qt.LeftButton)
+    assert memory_store.turn_count() == 0
+    assert "history cleared" in window.console.plain_text()

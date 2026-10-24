@@ -12,7 +12,7 @@ import threading
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
-from core import permissions
+from core import conversation, permissions
 from core.command_router import route_command
 from core.dispatcher import DispatchResult, dispatch_command
 from utils.logger import get_logger
@@ -103,6 +103,7 @@ class HinaBridge(QObject):
         return self.submit("yes" if yes else "no")
 
     def _run_command(self, raw_command):
+        command = None
         try:
             command = route_command(raw_command)
             if command.startswith("mode "):
@@ -112,6 +113,7 @@ class HinaBridge(QObject):
         except Exception:
             logger.exception("Command failed: %s", raw_command)
             result = DispatchResult(reply=FAILED_REPLY)
+        conversation.record(raw_command, command, result.reply)  # history (skipped in private mode)
         self._result_raw.emit(result)
 
     @Slot(object)

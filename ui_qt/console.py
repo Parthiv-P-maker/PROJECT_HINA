@@ -43,7 +43,7 @@ class ConsoleLog(QTextBrowser):
         f.setFontWeight(700 if bold else 400)
         return f
 
-    def _start_line(self, tag, tag_color):
+    def _start_line(self, tag, tag_color, when=None):
         self.finish()
         at_bottom = self._at_bottom()
         cur = QTextCursor(self.document())
@@ -58,7 +58,7 @@ class ConsoleLog(QTextBrowser):
             cur.setBlockFormat(block)
         else:
             cur.insertBlock(block)
-        cur.insertText(self.clock().strftime("%H:%M:%S") + "  ", self._fmt(theme.with_alpha(theme.TEXT_DIM, 170)))
+        cur.insertText((when or self.clock()).strftime("%H:%M:%S") + "  ", self._fmt(theme.with_alpha(theme.TEXT_DIM, 170)))
         cur.insertText(f"{tag:<5}", self._fmt(tag_color, bold=True))
         cur.insertText(" ", self._fmt(theme.TEXT))
         if at_bottom:
@@ -74,17 +74,20 @@ class ConsoleLog(QTextBrowser):
         bar.setValue(bar.maximum())
 
     # ---- public API -------------------------------------------------
-    def add_user(self, text):
-        cur = self._start_line("YOU", theme.TEXT_DIM)
-        cur.insertText(text, self._fmt(theme.TEXT))
+    def add_user(self, text, when=None, dim=False):
+        cur = self._start_line("YOU", theme.TEXT_DIM, when)
+        cur.insertText(text, self._fmt(theme.TEXT_DIM if dim else theme.TEXT))
         self._scroll_bottom()
 
-    def add_reply(self, text, typewriter=None):
+    def add_reply(self, text, typewriter=None, when=None, dim=False):
+        """`when`/`dim` are for restored history (shown instantly, greyed)."""
         text = theme.hud_text(text)
         if not text:
             return
-        cur = self._start_line("HINA", self.accent)
-        fmt = self._fmt(theme.TEXT.lighter(108))
+        cur = self._start_line("HINA", theme.with_alpha(self.accent, 150) if dim else self.accent, when)
+        fmt = self._fmt(theme.TEXT_DIM if dim else theme.TEXT.lighter(108))
+        if when is not None or dim:
+            typewriter = False
         if typewriter if typewriter is not None else self.typewriter:
             self._pending, self._pending_fmt = text, fmt
             self._timer.start(16)

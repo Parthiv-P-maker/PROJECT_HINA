@@ -13,8 +13,10 @@ class TestRouterWithoutAI:
         assert route_command("Tell Time") == "tell time"
         assert fake_ollama.requests == []
 
-    def test_unknown_input_with_ollama_down_falls_back_to_normalized(self, ollama_down):
-        assert route_command("blorp the flarn") == "blorp the flarn"
+    def test_unknown_input_with_ollama_down_becomes_chat_with_a_canned_reply(self, ollama_down):
+        assert route_command("Blorp the flarn") == "chat::Blorp the flarn"
+        from core.conversation import UNKNOWN_REPLIES
+        assert dispatch_command("chat::Blorp the flarn").reply in UNKNOWN_REPLIES
 
     def test_failure_is_recorded_in_context(self, ollama_down):
         from core.context_manager import context_manager
@@ -100,7 +102,7 @@ class TestFallbackParse:
 
     def test_router_rejects_fallback_that_is_not_a_known_command(self, fake_ollama):
         fake_ollama.generate_reply = "format c:"
-        assert route_command("do something") == "do something"
+        assert route_command("do something") == "chat::do something"
 
 
 class TestToolCalling:

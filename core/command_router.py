@@ -4,6 +4,7 @@ from core.context_manager import context_manager
 import threading
 from core import permissions
 from tools import registry
+from core.conversation import CHAT_PREFIX
 
 # Generated from the tool registry (tools/); kept for introspection.
 KNOWN_COMMAND_PREFIXES = registry.known_prefixes()
@@ -17,6 +18,7 @@ def route_command(raw_command):
     """
     Normalize user input and optionally use AI fallback for natural language.
     AI fallback is only attempted if command is not recognized via pattern matching.
+    Input no tool claims comes back as "chat::<input>" (chat mode).
     """
     clean_text = raw_command.strip().lower()
     # A pending "Should I?" gets first claim on yes/no; anything else drops it.
@@ -57,5 +59,7 @@ def route_command(raw_command):
             except Exception:
                 pass  # Fall through to normalized command
 
+    # Nothing to run: it's conversation. tools/recall.py's "chat" tool answers it with the
+    # model (or a canned reply when Ollama is down).
     context_manager.register_command(raw_command, normalized, success=False)
-    return normalized
+    return CHAT_PREFIX + raw_command.strip()

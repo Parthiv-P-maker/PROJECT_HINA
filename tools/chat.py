@@ -7,8 +7,10 @@ from tools.registry import Param, tool
 
 
 def _smalltalk(name, command, replies, *, triggers=(), exact_triggers=(), aliases=()):
+    # prompt=False: the AI string-mapping fallback mustn't turn conversation into a
+    # canned line; unmatched input goes to chat mode instead (tools/recall.py).
     @tool(name, f"Small talk: '{command}'.", command=command, triggers=triggers,
-          exact_triggers=exact_triggers, aliases=aliases, priority=30)
+          exact_triggers=exact_triggers, aliases=aliases, priority=30, prompt=False)
     def _reply():
         return random.choice(replies)
     return _reply

@@ -22,6 +22,7 @@ BOOT_LINES = [
 def boot(window, name=None, speak=True):
     """Boot sequence in the console, then the greeting (typed and spoken)."""
     from ui_qt.window import greeting
+    window.load_history()
     for i, (line, level) in enumerate(BOOT_LINES):
         QTimer.singleShot(120 * i, lambda l=line, lv=level: window.console.add_system(l, lv))
     message = greeting(name)

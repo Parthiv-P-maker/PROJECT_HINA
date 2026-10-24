@@ -5,6 +5,7 @@ EXIT_DELAY_MS = 1800
 import os as _os
 
 _ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+# Legacy in-repo profile; memory.py copies it into the user data dir once.
 MEMORY_PROFILE_PATH = _os.path.join(_ROOT, "memory", "user_profile.json")
 PETAL_CANVAS_WIDTH = 516
 PETAL_CANVAS_HEIGHT = 296

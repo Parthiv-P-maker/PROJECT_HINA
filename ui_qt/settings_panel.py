@@ -3,8 +3,9 @@
 from PySide6.QtCore import QEasingCurve, QPoint, QPointF, QPropertyAnimation, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
-    QCheckBox, QColorDialog, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QFormLayout, QHBoxLayout, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QPlainTextEdit, QPushButton, QScrollArea, QSlider,
+    QSpinBox, QVBoxLayout, QWidget,
 )
 
 from ui_qt import settings as settings_mod
@@ -16,6 +17,7 @@ class SettingsPanel(QWidget):
     saved = Signal(dict)
     preview = Signal(dict)     # live accent/opacity preview while editing
     closed = Signal()
+    memory_changed = Signal(str)   # facts deleted / history cleared (acts at once, not on SAVE)
 
     WIDTH = 330
 
@@ -125,6 +127,33 @@ class SettingsPanel(QWidget):
         self.folders.setFixedHeight(70)
         form.addRow("EXTRA SEARCH FOLDERS", self.folders)
 
+        # ---- memory (core/memory_store.py) ----
+        mem_title = QLabel("MEMORY")
+        mem_title.setObjectName("Caption")
+        form.addRow(mem_title)
+        self.private_mode = QCheckBox("Private mode (don't record history or facts)")
+        form.addRow(self.private_mode)
+        self.facts = QListWidget()
+        self.facts.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.facts.setFixedHeight(96)
+        self.facts.setWordWrap(True)
+        form.addRow("REMEMBERED FACTS", self.facts)
+        mem_buttons = QHBoxLayout()
+        self.delete_fact_btn = QPushButton("DELETE FACT")
+        self.delete_fact_btn.setToolTip("Forget the selected facts")
+        self.delete_fact_btn.clicked.connect(self.delete_selected_facts)
+        self.clear_history_btn = QPushButton("CLEAR HISTORY")
+        self.clear_history_btn.setToolTip("Delete the stored conversation history (click twice)")
+        self.clear_history_btn.clicked.connect(self.clear_history)
+        mem_buttons.addWidget(self.delete_fact_btn)
+        mem_buttons.addWidget(self.clear_history_btn)
+        mem_buttons.addStretch(1)
+        form.addRow(mem_buttons)
+        self.memory_info = QLabel("")
+        self.memory_info.setObjectName("Dim")
+        self._confirm_clear = False
+        form.addRow(self.memory_info)
+
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         self.cancel_btn = QPushButton("CANCEL")
@@ -152,7 +181,9 @@ class SettingsPanel(QWidget):
         self.on_top.setChecked(bool(s["always_on_top"]))
         self.ambient.setValue(int(s["ambient_minutes"]))
         self.folders.setPlainText("\n".join(s["search_folders"]))
+        self.private_mode.setChecked(bool(s.get("private_mode")))
         self._accent = s["accent"]
+        self.refresh_memory()
 
     def values(self):
         out = dict(self.settings)
@@ -168,8 +199,50 @@ class SettingsPanel(QWidget):
             always_on_top=self.on_top.isChecked(),
             ambient_minutes=self.ambient.value(),
             search_folders=[ln.strip() for ln in self.folders.toPlainText().splitlines() if ln.strip()],
+            private_mode=self.private_mode.isChecked(),
         )
         return out
+
+    # ---- memory -----------------------------------------------------
+    def refresh_memory(self):
+        from core import memory_store
+        from tools.recall import display
+        self._confirm_clear = False
+        self.clear_history_btn.setText("CLEAR HISTORY")
+        self.facts.clear()
+        try:
+            facts, turns = memory_store.list_facts(), memory_store.turn_count()
+        except Exception as exc:
+            self.memory_info.setText(f"Memory unavailable: {exc}")
+            return
+        for fact in facts:
+            item = QListWidgetItem(display(fact["text"]))
+            item.setData(Qt.UserRole, fact["id"])
+            item.setToolTip(f"{fact['created']} ({fact['source']})")
+            self.facts.addItem(item)
+        self.memory_info.setText(f"{len(facts)} facts, {turns} exchanges stored")
+
+    def delete_selected_facts(self):
+        from core import memory_store
+        ids = [item.data(Qt.UserRole) for item in self.facts.selectedItems()]
+        if not ids:
+            return 0
+        memory_store.delete_facts(ids)
+        self.refresh_memory()
+        self.memory_changed.emit(f"Forgot {len(ids)} fact{'s' if len(ids) != 1 else ''}.")
+        return len(ids)
+
+    def clear_history(self):
+        """First click arms it, second click clears."""
+        if not self._confirm_clear:
+            self._confirm_clear = True
+            self.clear_history_btn.setText("CONFIRM CLEAR")
+            return False
+        from core import memory_store
+        memory_store.clear_history()
+        self.refresh_memory()
+        self.memory_changed.emit("Conversation history cleared.")
+        return True
 
     def _set_accent(self, hex_):
         self._accent = hex_

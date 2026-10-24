@@ -4,6 +4,7 @@ import queue
 import threading
 
 from core.assistant import hina_reply
+from core import conversation
 from core.ambient import AmbientThoughtManager
 from core.command_router import route_command
 from core.dispatcher import DispatchResult, dispatch_command
@@ -103,6 +104,7 @@ def _finish_command(result):
 
 def _run_command(raw_command):
     """Runs in a worker thread so slow work (AI, file search) never freezes the window."""
+    command = None
     try:
         command = route_command(raw_command)
         result = dispatch_command(
@@ -114,6 +116,7 @@ def _run_command(raw_command):
     except Exception:
         logger.exception("Command failed: %s", raw_command)
         result = DispatchResult(reply="Something went wrong with that one 🌸")
+    conversation.record(raw_command, command, result.reply)
 
     # Hand the result to the Tk thread through a queue; Tk widgets and
     # after() must only be touched from the main thread.

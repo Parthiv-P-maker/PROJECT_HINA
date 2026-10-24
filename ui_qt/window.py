@@ -34,6 +34,7 @@ logger = get_logger(__name__)
 
 EXPANDED_SIZE = (1000, 620)
 COMPACT_SIZE = (560, 330)
+HISTORY_ON_START = 12   # earlier turns shown in the console at startup
 
 STATE_CAPTIONS = {
     "idle": "STANDBY",
@@ -301,6 +302,7 @@ class HinaWindow(QWidget):
         self.console.revealing_changed.connect(lambda _: self.refresh_state())
 
         self.settings_panel.saved.connect(self._on_settings_saved)
+        self.settings_panel.memory_changed.connect(lambda text: self.console.add_system(text, "ok"))
         self.settings_panel.preview.connect(lambda s: self._apply_look(s))
 
     # =================================================================
@@ -363,6 +365,25 @@ class HinaWindow(QWidget):
         if result.should_exit:
             QTimer.singleShot(result.exit_delay_ms or 1800, self.quit_app)
         self.refresh_state()
+
+    def load_history(self, limit=HISTORY_ON_START):
+        """Show the last few turns from earlier sessions (greyed) so the log survives restarts."""
+        try:
+            from core import memory_store
+            turns = memory_store.recent_turns(limit=limit)
+        except Exception as exc:
+            logger.warning("Couldn't load history: %s", exc)
+            return 0
+        for turn in turns:
+            try:
+                when = datetime.fromisoformat(turn["ts"])
+            except (TypeError, ValueError):
+                when = None
+            self.console.add_user(turn["user"], when=when, dim=True)
+            self.console.add_reply(turn["reply"], when=when, dim=True)
+        if turns:
+            self.console.add_system(f"Restored {len(turns)} earlier exchanges.")
+        return len(turns)
 
     def speak(self, text):
         if self._speak is not None:
@@ -523,9 +544,13 @@ class HinaWindow(QWidget):
 
     def _on_settings_saved(self, s):
         s = dict(s, compact=self.compact, window_pos=self.settings.get("window_pos"))
+        was_private = bool(self.settings.get("private_mode"))
         self.apply_settings(s)
         settings_mod.save(s)
         self.console.add_system("Configuration saved.", "ok")
+        if bool(s.get("private_mode")) != was_private:
+            self.console.add_system("Private mode on: nothing new is recorded." if s.get("private_mode")
+                                    else "Private mode off: history recording resumed.", "warn")
 
     def toggle_settings(self):
         if self.settings_panel.open:
