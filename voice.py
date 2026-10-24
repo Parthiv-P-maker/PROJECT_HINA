@@ -27,6 +27,20 @@ except Exception:
 
 VOICE = "en-US-AriaNeural"
 
+_speaking = 0
+_speaking_lock = threading.Lock()
+
+
+def is_speaking():
+    """True while speech is queued, synthesised or playing (the mic must stay shut)."""
+    return _speaking > 0
+
+
+def _mark(delta):
+    global _speaking
+    with _speaking_lock:
+        _speaking += delta
+
 
 async def _speak_async(text):
     filename = "hina_voice.mp3"
@@ -63,7 +77,7 @@ def _speak_sync(text):
 
 
 def _speak_thread(text):
-    """Run speech synthesis in a background thread."""
+    """Run speech synthesis in a background thread (caller has already _mark(1)'d)."""
     try:
         clean = clean_text(text)
         if _HAS_EDGE_TTS and _HAS_PYGAME:
@@ -77,6 +91,8 @@ def _speak_thread(text):
         _speak_sync(clean)
     except Exception as e:
         logger.error("Speech synthesis failed: %s", e)
+    finally:
+        _mark(-1)
 
 
 def speak(text, blocking=False):
@@ -91,6 +107,7 @@ def speak(text, blocking=False):
     
     if not blocking:
         # Run in background thread to avoid blocking UI
+        _mark(1)  # before the thread starts, so there is no gap the mic could slip into
         thread = threading.Thread(
             target=_speak_thread,
             args=(clean,),
@@ -99,11 +116,15 @@ def speak(text, blocking=False):
         thread.start()
     else:
         # Blocking mode for testing or when needed
-        if _HAS_EDGE_TTS and _HAS_PYGAME:
-            try:
-                asyncio.run(_speak_async(clean))
-                return
-            except Exception as e:
-                logger.warning("edge_tts failed: %s", e)
-        
-        _speak_sync(clean)
+        _mark(1)
+        try:
+            if _HAS_EDGE_TTS and _HAS_PYGAME:
+                try:
+                    asyncio.run(_speak_async(clean))
+                    return
+                except Exception as e:
+                    logger.warning("edge_tts failed: %s", e)
+
+            _speak_sync(clean)
+        finally:
+            _mark(-1)

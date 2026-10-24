@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from actions import (
     open_app,
     search_and_open_file,
+    find_file,
     find_folder,
     close_app,
     restart_app,
@@ -42,6 +43,9 @@ class DispatchResult:
 
 def dispatch_command(command, output_var=None, output_label=None, app=None):
     """Route a normalized command to the appropriate action handler."""
+    if command.startswith("ai_reply::"):
+        return DispatchResult(reply=command[len("ai_reply::"):])
+
     if command.startswith("set name "):
         name = command.replace("set name ", "").strip()
         return DispatchResult(reply=set_name(name))
@@ -63,16 +67,21 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
         favorite_app = get_favorite_app(app_name)
         if favorite_app:
             app_name = favorite_app
+        result = open_app(app_name)
+        if "ouldn't" in result:
+            return DispatchResult(reply=result)
         add_recent_app(app_name)
-        open_app(app_name)
         return DispatchResult(reply=generate_response("open_app", app_name))
 
     if command.startswith("mode "):
         mode_name = command.replace("mode ", "").strip()
         return DispatchResult(reply=launch_mode(mode_name))
 
+    if command.startswith("find file "):
+        return DispatchResult(reply=find_file(command.replace("find file ", "").strip()))
+
     if command.startswith("find folder "):
-        return DispatchResult(reply=find_folder(command.replace("find folder ", "")))
+        return DispatchResult(reply=find_folder(command.replace("find folder ", "").strip()))
 
     if command.startswith("favorite app "):
         data = command.replace("favorite app ", "").split(" as ")
@@ -83,13 +92,17 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
         return DispatchResult(reply="Use: favorite app chrome as browser 🌸")
 
     if command.startswith("close "):
-        app_name = command.replace("close ", "")
-        close_app(app_name)
+        app_name = command.replace("close ", "").strip()
+        result = close_app(app_name)
+        if "ouldn't" in result:
+            return DispatchResult(reply=result)
         return DispatchResult(reply=generate_response("close_app", app_name))
 
     if command.startswith("restart "):
-        app_name = command.replace("restart ", "")
-        restart_app(app_name)
+        app_name = command.replace("restart ", "").strip()
+        result = restart_app(app_name)
+        if "ouldn't" in result:
+            return DispatchResult(reply=result)
         return DispatchResult(reply=generate_response("restart_app", app_name))
 
     if command.startswith("timer "):
@@ -122,7 +135,7 @@ def dispatch_command(command, output_var=None, output_label=None, app=None):
         query = command.replace("search chatgpt ", "").strip()
         return DispatchResult(reply=search_chatgpt(query))
 
-    
+    if command.startswith("countdown "):
         seconds = try_parse_int(command.replace("countdown ", ""))
         if seconds is None:
             return DispatchResult(reply="Please enter a valid number 🌸")

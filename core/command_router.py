@@ -31,6 +31,8 @@ KNOWN_COMMAND_PREFIXES = [
     "what do you think",
     "im tired",
     "tell me something",
+    "bye",
+    "exit",
 ]
 
 
@@ -55,14 +57,27 @@ def route_command(raw_command):
     # Try AI fallback only if pattern matching failed
     # This is deferred via lazy loading to avoid startup blocking
     ai_engine = get_ai_engine()
-    if ai_engine and hasattr(ai_engine, 'fallback_parse_command'):
-        try:
-            ai_fallback = ai_engine.fallback_parse_command(clean_text, context_manager.get_context())
-            if ai_fallback and _is_known_command(ai_fallback):
-                context_manager.register_command(raw_command, ai_fallback, success=True)
-                return ai_fallback
-        except Exception:
-            pass  # Fall through to normalized command
+    if ai_engine:
+        # 1. Real tool-calling: let the model invoke an action directly instead
+        #    of only mapping onto one of the ~25 known command strings.
+        if hasattr(ai_engine, 'resolve_tool_call'):
+            try:
+                tool_reply = ai_engine.resolve_tool_call(clean_text, context_manager.get_context())
+                if tool_reply:
+                    context_manager.register_command(raw_command, "ai_tool_call", success=True)
+                    return "ai_reply::" + tool_reply
+            except Exception:
+                pass  # Fall through to the string-mapping fallback
+
+        # 2. Fallback: map the input onto a known command string.
+        if hasattr(ai_engine, 'fallback_parse_command'):
+            try:
+                ai_fallback = ai_engine.fallback_parse_command(clean_text, context_manager.get_context())
+                if ai_fallback and _is_known_command(ai_fallback):
+                    context_manager.register_command(raw_command, ai_fallback, success=True)
+                    return ai_fallback
+            except Exception:
+                pass  # Fall through to normalized command
 
     context_manager.register_command(raw_command, normalized, success=False)
     return normalized

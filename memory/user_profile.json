@@ -1,14 +1,16 @@
 {
-    "name": "parth",
+    "name": "",
     "recent_apps": [
+        "spotify",
         "chrome",
         "org",
-        "vscode",
-        "spotify"
+        "vscode"
     ],
     "favorite_apps": {
         "browser": "chrome"
     },
-    "recent_files": [],
+    "recent_files": [
+        "tshirt.png"
+    ],
     "favorite_folders": {}
 }

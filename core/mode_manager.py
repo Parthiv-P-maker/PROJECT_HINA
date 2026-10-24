@@ -1,9 +1,9 @@
 import json
 import os
-import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from utils.launcher import launch
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -97,15 +97,11 @@ def resolve_app_path(app_name: str) -> Optional[str]:
 
 
 def _launch_path_or_command(command: str) -> Tuple[bool, str]:
-    try:
-        if os.path.isfile(command):
-            subprocess.Popen(f'start "" "{command}"', shell=True)
-        else:
-            subprocess.Popen(f'start "" {command}', shell=True)
+    ok, error = launch(command)
+    if ok:
         return True, "success"
-    except Exception as exc:
-        logger.warning("Failed to launch '%s': %s", command, exc)
-        return False, str(exc)
+    logger.warning("Failed to launch '%s': %s", command, error)
+    return False, error
 
 
 def launch_app(app_name: str) -> Tuple[bool, str]:

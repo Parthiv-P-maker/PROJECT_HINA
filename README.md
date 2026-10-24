@@ -55,6 +55,7 @@ Rather than functioning solely as a command executor, Hina is designed as an evo
 * Spoken assistant responses
 * Countdown voice announcements
 * Startup greeting interaction
+* **Voice input**: click the 🎤 button (or press `Ctrl+M`), speak, and Hina transcribes it offline with faster-whisper (`small.en` on an NVIDIA GPU, `base.en` on CPU, downloaded on first use; override with `HINA_STT_MODEL`). Spoken maths works ("calculate 25 times 12"), and your saved name is spelled correctly and runs it like typed input. Recording stops after a pause; click ■ to cancel. Hina won't listen while she is speaking. Needs `sounddevice` and a microphone; without them she says so politely. Check your mic with `python -m core.stt`, and pick a different one with `HINA_MIC_DEVICE` (index or part of its name).
 
 ---
 
@@ -149,6 +150,7 @@ project_hina/
 │   ├── assistant.py
 │   ├── dispatcher.py
 │   ├── command_router.py
+│   ├── stt.py
 │   ├── startup.py
 │   ├── countdown.py
 │   └── personality_engine.py

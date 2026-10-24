@@ -1,5 +1,17 @@
+import re
+
+_POLITE_PREFIX = re.compile(r"^(?:(?:please|can you|could you|would you|hey hina|hina)[ ,]+)+")
+_MY = re.compile(r"\bmy\b\s*")
+_FIND = re.compile(r"^(?:find|locate)\b")
+
+
+def _drop_my(text):
+    return _MY.sub("", text).strip()
+
+
 def normalize_command(command):
     command = command.lower().strip()
+    command = _POLITE_PREFIX.sub("", command).strip()
 
     if command.endswith(" mode"):
         mode_name = command[:-len(" mode")].strip()
@@ -56,39 +68,30 @@ def normalize_command(command):
         return "tell me something"
 
     # File / folder search
-    elif "find" in command and "folder" in command:
-        folder_name = (
-            command.replace("find", "")
-            .replace("folder", "")
-            .replace("my", "")
-            .strip()
-        )
+    elif _FIND.match(command) and re.search(r"\bfolder\b", command):
+        folder_name = _drop_my(re.sub(r"\bfolder\b", "", _FIND.sub("", command, count=1)))
         return "find folder " + folder_name
 
-    elif "find" in command:
-        file_name = (
-            command.replace("find", "")
-            .replace("my", "")
-            .strip()
-        )
+    elif _FIND.match(command):
+        file_name = _drop_my(_FIND.sub("", command, count=1))
         return "find file " + file_name
 
     # App controls
     elif command.startswith("launch "):
-        target = command.replace("launch ", "").replace("my", "").strip()
+        target = _drop_my(command[len("launch "):])
         return "open " + target
 
     elif command.startswith("close "):
-        target = command.replace("close ", "").replace("my", "").strip()
+        target = _drop_my(command[len("close "):])
         return "close " + target
 
     elif command.startswith("restart "):
-        target = command.replace("restart ", "").replace("my", "").strip()
+        target = _drop_my(command[len("restart "):])
         return "restart " + target
 
     # Smart open handling
     elif command.startswith("open "):
-        target = command.replace("open ", "").replace("my", "").strip()
+        target = _drop_my(command[len("open "):])
 
         if any(ext in target for ext in file_extensions):
             return "open file " + target

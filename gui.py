@@ -1,12 +1,14 @@
 import customtkinter as ctk
 import keyboard
+import queue
 import threading
 
 from core.assistant import hina_reply
 from core.ambient import AmbientThoughtManager
 from core.command_router import route_command
-from core.dispatcher import dispatch_command
+from core.dispatcher import DispatchResult, dispatch_command
 from core.startup import build_startup_message
+from core.stt import SpeechInput, SttError
 from memory import get_name
 from ui.animations import start_petal_animation, start_status_blink
 from ui.effects import _on_entry_blur, _on_entry_focus
@@ -32,13 +34,49 @@ logger = get_logger(__name__)
 # STATUS DOT BLINK
 
 
-def _handle_command(command):
-    result = dispatch_command(
-        command,
-        output_var=output_var,
-        output_label=output_label,
-        app=app,
-    )
+_busy = False
+_listening = False
+_results = queue.Queue()
+
+_STATE_LABELS = {
+    "waiting": "waiting for me to finish...",
+    "listening": "listening... 🎤",
+    "transcribing": "transcribing...",
+}
+
+
+class _Heard:
+    """Worker -> Tk thread: what the microphone made of the user's speech."""
+
+    def __init__(self, text="", error=None, cancelled=False):
+        self.text, self.error, self.cancelled = text, error, cancelled
+
+
+class _State:
+    """Worker -> Tk thread: the voice pipeline moved to a new stage."""
+
+    def __init__(self, name):
+        self.name = name
+
+
+def _speaking_now():
+    import voice
+    return voice.is_speaking()
+
+
+speech = SpeechInput(is_speaking=_speaking_now, on_state=lambda name: _results.put(_State(name)))
+
+
+def _set_busy(busy, label="thinking..."):
+    global _busy
+    _busy = busy
+    sub_label.configure(text=label if busy else "your ambient companion")
+    mic_btn.configure(text="■" if _listening else "🎤")
+
+
+def _finish_command(result):
+    """Runs on the Tk thread: show the reply and clear the busy state."""
+    _set_busy(False)
 
     if result.reply:
         hina_reply(result.reply, output_var, output_label, app)
@@ -47,20 +85,117 @@ def _handle_command(command):
         app.after(result.exit_delay_ms or 1800, app.destroy)
 
 
+def _run_command(raw_command):
+    """Runs in a worker thread so slow work (AI, file search) never freezes the window."""
+    try:
+        command = route_command(raw_command)
+        result = dispatch_command(
+            command,
+            output_var=output_var,
+            output_label=output_label,
+            app=app,
+        )
+    except Exception:
+        logger.exception("Command failed: %s", raw_command)
+        result = DispatchResult(reply="Something went wrong with that one 🌸")
+
+    # Hand the result to the Tk thread through a queue; Tk widgets and
+    # after() must only be touched from the main thread.
+    _results.put(result)
+
+
+def _run_listen():
+    """Worker thread: record + transcribe, then report back through the queue."""
+    try:
+        text = speech.listen()
+        _results.put(_Heard(text=text, cancelled=speech.cancel.is_set()))
+    except SttError as exc:
+        _results.put(_Heard(error=str(exc)))
+    except Exception:
+        logger.exception("Voice input failed")
+        _results.put(_Heard(error="Voice input hit a snag 🌸"))
+
+
+def _finish_listening(heard):
+    """Runs on the Tk thread once the mic is done."""
+    global _listening
+    _listening = False
+    _set_busy(False)
+
+    if heard.cancelled:
+        return
+    if heard.error:
+        output_var.set(heard.error)
+    elif not heard.text:
+        output_var.set("I didn't catch that - try again? 🎤")
+    else:
+        _start_command(heard.text)
+
+
+def toggle_listening(event=None):
+    """Mic button / hotkey: start listening, or stop if already listening."""
+    global _listening
+    if _listening:
+        speech.cancel.set()
+        return
+    if _busy:
+        return
+
+    _listening = True
+    output_var.set("Listening... 🎤")
+    _set_busy(True, _STATE_LABELS["listening"])
+    threading.Thread(target=_run_listen, daemon=True).start()
+
+
+def _hotkey_listen():
+    """keyboard calls hotkeys on its own thread; hop to Tk before touching widgets."""
+    def go():
+        if app.state() == "withdrawn":
+            toggle_window(app, entry)
+        toggle_listening()
+    app.after(0, go)
+
+
+def _handle_result(item):
+    if isinstance(item, _Heard):
+        _finish_listening(item)
+    elif isinstance(item, _State):
+        if _listening:
+            sub_label.configure(text=_STATE_LABELS.get(item.name, item.name))
+    else:
+        _finish_command(item)
+
+
+def _poll_results():
+    try:
+        while True:
+            _handle_result(_results.get_nowait())
+    except queue.Empty:
+        pass
+    app.after(50, _poll_results)
+
+
 # =========================
 # COMMAND EXECUTION
 # =========================
 
 def execute_command(event=None):
+    if _busy:
+        return
+
     raw_command = entry.get().strip()
     if not raw_command:
         return
 
-    command = route_command(raw_command)
     entry.delete(0, "end")
+    _start_command(raw_command)
 
+
+def _start_command(raw_command):
+    """Shared by typed and spoken input: same router, same dispatcher."""
     output_var.set(f"> {raw_command}")
-    app.after(300, lambda: _handle_command(command))
+    _set_busy(True)
+    threading.Thread(target=_run_command, args=(raw_command,), daemon=True).start()
 
 
 # =========================
@@ -262,6 +397,19 @@ entry = ctk.CTkEntry(
 )
 entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
+mic_btn = ctk.CTkButton(
+    entry_frame,
+    text="🎤",
+    width=44, height=44,
+    corner_radius=14,
+    fg_color=C_BG_CARD,
+    border_color=C_BORDER,
+    border_width=1,
+    hover_color=C_SAKURA_DIM,
+    text_color=C_SAKURA,
+    font=("Segoe UI Emoji", 16),
+    command=toggle_listening
+)
 send_btn = ctk.CTkButton(
     entry_frame,
     text="→",
@@ -274,6 +422,7 @@ send_btn = ctk.CTkButton(
     command=execute_command
 )
 send_btn.pack(side="right")
+mic_btn.pack(side="right", padx=(0, 10))
 
 entry.bind("<Return>", execute_command)
 entry.bind("<FocusIn>", _on_entry_focus)
@@ -281,6 +430,9 @@ entry.bind("<FocusOut>", _on_entry_blur)
 entry.bind("<KeyRelease>", ambient_manager.reset_timer)
 entry.bind("<FocusIn>", ambient_manager.reset_timer)
 entry.bind("<FocusOut>", ambient_manager.reset_timer)
+
+
+app.after(50, _poll_results)
 
 
 # =========================
@@ -305,6 +457,8 @@ keyboard.add_hotkey(
     "ctrl+h",
     lambda: toggle_window(app, entry)
 )
+
+keyboard.add_hotkey("ctrl+m", _hotkey_listen)
 
 
 # =========================
