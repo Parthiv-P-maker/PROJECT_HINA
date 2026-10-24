@@ -116,7 +116,7 @@ class TestTimersCalc:
         assert dispatch_command("countdown 3").reply == ""
 
     def test_countdown_with_gui_starts_thread(self, monkeypatch):
-        import core.dispatcher as d
+        import tools.system as d
         started = []
 
         class T:

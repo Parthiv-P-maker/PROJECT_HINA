@@ -6,7 +6,7 @@ Permission tiers for actions.
   blocked  never runs
 
 Every action is logged (see utils/action_log.py). TIERS is a plain
-name -> tier table so a future tool registry can adopt it as-is.
+name -> tier table, filled by the tool registry (tools/).
 Unlisted actions default to "confirm" (fail safe).
 """
 
@@ -18,16 +18,9 @@ from utils.action_log import log_action
 
 SAFE, CONFIRM, BLOCKED = "safe", "confirm", "blocked"
 
+# Tools add themselves here when they register (tools/registry.py), so a tool's
+# tier is declared once, in its @tool(...). These are actions with no tool yet.
 TIERS = {
-    "open_app": SAFE,
-    "open_file": SAFE,
-    "find_file": SAFE,
-    "find_folder": SAFE,
-    "calculate": SAFE,
-    "set_timer": SAFE,
-    "search_web": SAFE,
-    "close_app": CONFIRM,
-    "restart_app": CONFIRM,
     "delete_file": CONFIRM,
     "shutdown": CONFIRM,
     "restart_computer": CONFIRM,
@@ -45,6 +38,9 @@ _pending = None  # {"action", "target", "run", "expires"}
 
 
 def tier_of(action):
+    if action not in TIERS:
+        from tools import registry  # registering the tools fills TIERS
+        registry.ensure_loaded()
     return TIERS.get(action, CONFIRM)
 
 

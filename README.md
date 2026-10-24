@@ -322,3 +322,7 @@ Some systems are experimental and may evolve significantly as future AI, voice, 
 ### **Hina V1 — Stable Architecture Build**
 
 The project has successfully transitioned from an experimental prototype into a structured, modular desktop assistant framework prepared for long-term expansion and AI integration.
+
+## Adding a command
+
+Commands live in a single registry: write one `@tool(...)` function in `tools/` and the parser, AI tool schema, router, dispatcher and permission tier all pick it up. See [tools/README.md](tools/README.md).
