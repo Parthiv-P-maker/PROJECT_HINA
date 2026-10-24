@@ -5,6 +5,7 @@
 **Goal:** turn Hina from *a pretty command launcher with an AI fallback* into a **Jarvis-style assistant**. That means one that hears you, talks back naturally, remembers, sees your screen, and acts safely on your laptop, while staying local-first and keeping its sakura personality.
 
 **Priority key:** 🔴 P0 must do next · 🟠 P1 high value · 🟡 P2 important · 🔵 P3 later / stretch
+**Status key:** ✅ done · 🚧 in progress · ⏸ planned, waiting on another item
 **Size:** S = an evening · M = a weekend · L = a week or more
 
 ---
@@ -34,16 +35,16 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 
 | ID | Task | Pri | Size | Fixes |
 |---|---|---|---|---|
-| **0.1** | **Make tools safe:** replace `eval` with a tiny AST math evaluator (or `simpleeval`); swap every `shell=True` string for `subprocess.Popen([...])` / `os.startfile`; allow-list app names in `close_app`; map friendly names to process names (`vscode` → `Code.exe`) | 🔴 | S | Security §6.1–6.2, B-close |
-| **0.2** | **Move work off the UI thread:** run `route_command` + `dispatch_command` in a worker thread (or `concurrent.futures`), post results back with `app.after(0, …)`; show a "thinking…" state on the status dot | 🔴 | S | B3 |
-| **0.3** | **Fix Ollama calls:** add `"stream": False` to `/api/generate`; move `temperature`/`num_predict` into `"options"`; drop `max_length`; add a 1-second health check so a missing Ollama is skipped instantly | 🔴 | S | B1, B2 |
-| 0.4 | Add the missing `find file` handler; make file and folder search **scoped** (Desktop, Documents, Downloads, project folders) with a result cap, and stop `open_app` from falling back to opening random files | 🔴 | S | B4, B8 |
-| 0.5 | Fix the parser: whole-word removal of "my" (`re.sub(r"\bmy\b", …)`), and tighter `find` matching | 🔴 | S | B5, B6 |
+| **0.1** | ✅ **Make tools safe:** replace `eval` with a tiny AST math evaluator (or `simpleeval`); swap every `shell=True` string for `subprocess.Popen([...])` / `os.startfile`; allow-list app names in `close_app`; map friendly names to process names (`vscode` → `Code.exe`) | 🔴 | S | Security §6.1–6.2, B-close |
+| **0.2** | ✅ **Move work off the UI thread:** run `route_command` + `dispatch_command` in a worker thread (or `concurrent.futures`), post results back with `app.after(0, …)`; show a "thinking…" state on the status dot | 🔴 | S | B3 |
+| **0.3** | ✅ **Fix Ollama calls:** add `"stream": False` to `/api/generate`; move `temperature`/`num_predict` into `"options"`; drop `max_length`; add a 1-second health check so a missing Ollama is skipped instantly | 🔴 | S | B1, B2 |
+| 0.4 | ✅ Add the missing `find file` handler; make file and folder search **scoped** (Desktop, Documents, Downloads, project folders) with a result cap, and stop `open_app` from falling back to opening random files | 🔴 | S | B4, B8 |
+| 0.5 | ✅ Fix the parser: whole-word removal of "my" (`re.sub(r"\bmy\b", …)`), and tighter `find` matching | 🔴 | S | B5, B6 |
 | 0.6 | Make timers report through the GUI and voice; give each timer an ID with its own cancel event (`threading.Event`) | 🟠 | S | B7 |
 | 0.7 | Absolute paths: build `MEMORY_PROFILE_PATH` from `Path(__file__)`, or better, store user data under `%APPDATA%\Hina\` | 🟠 | S | B9 |
 | 0.8 | Voice: unique temp file per utterance plus a speech **queue** (one speaker thread) | 🟠 | S | B10 |
 | 0.9 | Housekeeping: delete `main.py`/`personality.py` (or move them to `legacy/`); add `build/`, `dist/` and `*.mp3` to `.gitignore`; rewrite `requirements.txt` to the ~10 packages Hina actually uses; fix the focus-border binding; only say "Opening X" when the action succeeded | 🟡 | S | B12, B13, §7 |
-| 0.10 | **Tests:** `pytest` for `parser.normalize_command`, the dispatcher and the calculator; a mock Ollama for `ai_engine` | 🟡 | M | |
+| 0.10 | ✅ **Tests:** `pytest` for `parser.normalize_command`, the dispatcher and the calculator; a mock Ollama for `ai_engine` | 🟡 | M | |
 | 0.11 | Finish and merge `feature/ollama-tool-calling` into `main` once 0.1–0.3 are in | 🔴 | S | |
 
 **Exit criteria:** the window never freezes, the LLM can't run arbitrary code, all 25 commands work from the GUI, and tests are green.
@@ -60,7 +61,7 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 | **1.2** | **Conversational mode.** Anything that isn't a command goes to the LLM as a chat with rolling history (last ~10 turns), the personality in the system prompt, and the user's name, time and recent apps from `context_manager`. Replaces the canned small-talk lists | 🔴 | M | 0.2, 0.3 |
 | 1.3 | **Streaming replies.** Use Ollama `stream: True`, show tokens as they arrive, and start speaking at the first sentence (cuts perceived latency from about 5 s to about 1 s) | 🟠 | M | 1.2 |
 | 1.4 | **Multi-step tool loop.** Feed the tool result back to the model so it can chain calls ("open spotify and set a 25-minute timer") with a max of about 5 steps | 🟠 | M | 1.1 |
-| 1.5 | **Long-term memory v2.** Move from JSON to SQLite: facts ("I study at…", "my sister is…"), preferences and conversation summaries. Add "remember that…" / "what do you know about me?" / "forget…" | 🟠 | M | 1.2 |
+| 1.5 | ⏸ **Long-term memory v2.** Move from JSON to SQLite: facts ("I study at…", "my sister is…"), preferences and conversation summaries. Add "remember that…" / "what do you know about me?" / "forget…" | 🟠 | M | 1.2 |
 | 1.6 | **Semantic recall.** Embeddings (Ollama `nomic-embed-text`) over memories so relevant facts get pulled into the prompt automatically | 🟡 | M | 1.5 |
 | 1.7 | **Model tiering.** Keep `qwen2.5:3b` for fast routing and an optional bigger local model (7–8B) or a cloud API for hard questions, with a setting to toggle "local only" | 🟡 | S | 1.2 |
 | 1.8 | **Personality switching by voice/text** ("be tsundere"), saved to the profile; personality also drives the LLM system prompt | 🟡 | S | 1.2 |
@@ -73,7 +74,7 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 
 | ID | Task | Pri | Size | Depends on |
 |---|---|---|---|---|
-| **2.1** | **Push-to-talk speech input.** Hold a hotkey or click a mic button → record with `sounddevice` → transcribe with **`faster-whisper`** (already installed, `base.en` or `small.en` on your CUDA GPU) → same pipeline as typed text | 🔴 | M | 0.2 |
+| **2.1** | ✅ **Push-to-talk speech input.** Hold a hotkey or click a mic button → record with `sounddevice` → transcribe with **`faster-whisper`** (already installed, `base.en` or `small.en` on your CUDA GPU) → same pipeline as typed text | 🔴 | M | 0.2 |
 | **2.2** | **Wake word "Hey Hina".** `openWakeWord` (free, local; can train a custom "Hina" model) or Porcupine. Always-on, low CPU, pops the window and starts listening | 🟠 | M | 2.1 |
 | 2.3 | **Voice activity detection** (Silero VAD) so it stops recording when you stop talking | 🟠 | S | 2.1 |
 | 2.4 | **Barge-in:** speaking or pressing the hotkey stops Hina mid-sentence | 🟡 | S | 0.8, 2.1 |
@@ -89,7 +90,7 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 
 | ID | Capability | Pri | Size | Notes |
 |---|---|---|---|---|
-| **3.1** | **Permission tiers:** each tool is tagged `safe` / `confirm` / `blocked`. Destructive actions (close app, delete, send, shutdown) ask "Should I?" by voice or button first. Everything gets an action log | 🔴 | S | Must land before the risky tools below |
+| **3.1** | ✅ **Permission tiers:** each tool is tagged `safe` / `confirm` / `blocked`. Destructive actions (close app, delete, send, shutdown) ask "Should I?" by voice or button first. Everything gets an action log | 🔴 | S | Must land before the risky tools below |
 | 3.2 | System controls: volume, mute, brightness, Wi-Fi/Bluetooth toggle, lock, sleep, shutdown (confirm) | 🟠 | S | `pycaw`, `screen-brightness-control` |
 | 3.3 | Media control: play/pause/next, "what's playing", Spotify search | 🟠 | S | Media keys or Spotify Web API |
 | 3.4 | Reminders and alarms at times ("remind me at 6 to call mom"), persisted across restarts, plus Windows toast notifications | 🟠 | M | APScheduler + SQLite (1.5) |
@@ -148,6 +149,17 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 | Screen understanding | 1.4 tool loop, a vision model in Ollama |
 | Installer | 0.7 absolute/AppData paths, 5.1 settings |
 | Avatar emotions | 1.8 personality, 5.4 avatar |
+
+---
+
+
+## Progress log (updated 25 Oct 2026)
+
+- **Done:** 0.2 (worker thread with a "thinking..." state), 0.5 (parser fixes), 0.10 (pytest suite), 2.1 (push-to-talk speech input with `faster-whisper`), and the safety sprint 0.1, 0.3, 0.4, 3.1 (branch `claude/beautiful-chandrasekhar-6f7ad8`, commit `53e16b2`, 348 tests pass, not yet merged). That covers the AST math evaluator, no `shell=True`, the Ollama fixes, file search scoped to Desktop/Documents/Downloads plus `search_folders.txt`, the `find file` parser bug, permission tiers (`core/permissions.py`), yes/no confirmation for close/restart and an action log (`action_log.jsonl`). Also fixed: `bye`/`exit` routing and Chinese replies.
+- **Not verified yet:** the Yes/No buttons in the GUI, a run against a real Ollama, and live mic use. Delete and shutdown tools don't exist yet, so only close and restart are gated.
+- **Planned, paused until the safety sprint lands:** 1.5 memory v2 in three stages: a safe store (atomic writes, lock, data under `%APPDATA%\Hina\`, which also covers 0.7), conversation history with rolling summaries, then SQLite facts with "remember / what do you know about me / forget". Best designed together with 1.2 and after 1.1, so the new commands are registered in one place.
+- **Decided for 4.1 (vision):** start with `qwen2.5vl:3b` via Ollama (fits 8GB VRAM next to the text model), `mss` screenshots downscaled to ~1280px, a new `core/vision.py` on a worker thread, explicit trigger only at first, short `keep_alive`. Start after the current sprints, since it touches `gui.py` and the router.
+- **Suggested order now:** merge the safety branch → 0.11 merge `feature/ollama-tool-calling` → 1.1 tool registry → 1.2 chat mode and memory v2 → 4.1 vision.
 
 ---
 
