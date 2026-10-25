@@ -106,6 +106,7 @@ class HinaWindow(QWidget):
     def __init__(self, settings=None, bridge=None, hotkeys=True, tray=True, speak=None, parent=None):
         super().__init__(parent)
         self.settings = settings if settings is not None else settings_mod.load()
+        self._streamed_speech = False
         self.bridge = bridge or HinaBridge(self.settings)
         self.bridge.settings = self.settings
         self._speak = speak
@@ -294,6 +295,7 @@ class HinaWindow(QWidget):
         b.mic_level.connect(self.core.set_level)
         b.side_text.connect(lambda text: self.console.add_system(text))
         b.notice.connect(self._on_notice)
+        b.speech_chunk.connect(self._on_speech_chunk)
         b.busy_changed.connect(lambda _: self.refresh_state())
         b.listening_changed.connect(self._on_listening_changed)
         b.mode_changed.connect(lambda m: self.status.mode.set(m, "active"))
@@ -357,11 +359,18 @@ class HinaWindow(QWidget):
             return False
         return self.start_command("yes" if yes else "no")
 
+    def _on_speech_chunk(self, sentence):
+        """A chat reply is still streaming: say each sentence now, not after the last one."""
+        self._streamed_speech = True
+        self.speak(sentence)
+
     def _on_result(self, result):
         self.show_confirm(bool(getattr(result, "needs_confirmation", False)))
+        streamed, self._streamed_speech = self._streamed_speech, False
         if result.reply:
             self.console.add_reply(result.reply)
-            self.speak(result.reply)
+            if not streamed:  # otherwise it has already been spoken sentence by sentence
+                self.speak(result.reply)
         if getattr(result, "needs_confirmation", False):
             self.console.add_system("Awaiting confirmation.", "warn")
         if result.should_exit:

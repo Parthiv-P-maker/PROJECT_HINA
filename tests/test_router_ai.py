@@ -165,3 +165,113 @@ class TestRewrite:
 def test_blank_model_output_does_not_crash_fallback(fake_ollama):
     fake_ollama.generate_reply = "   "
     assert ai_engine.fallback_parse_command("x") is None
+
+
+# --- Phase 1: multi-step tools, streaming, tiering, personality --------------
+
+def test_multi_step_request_runs_every_tool_the_model_asks_for(fake_ollama, monkeypatch):
+    import core.ai_engine as ai_engine
+    calls = []
+    monkeypatch.setattr(ai_engine, "_call_tool", lambda name, args: calls.append((name, args)) or f"{name} done.")
+    script = iter([
+        [("open_app", {"name": "spotify"})],
+        [("set_timer", {"seconds": 1500})],
+        [],
+    ])
+
+    def post(url, json=None, timeout=None, stream=False):
+        class R:
+            def raise_for_status(self): pass
+            def json(self_):
+                step = next(script)
+                return {"message": {"tool_calls": [{"function": {"name": n, "arguments": a}} for n, a in step]}}
+        return R()
+
+    monkeypatch.setattr(ai_engine.requests, "post", post)
+    reply = ai_engine.resolve_tool_call("open spotify and set a 25 minute timer")
+    assert [c[0] for c in calls] == ["open_app", "set_timer"]
+    assert reply == "open_app done. set_timer done."
+
+
+def test_repeated_identical_tool_call_runs_once(fake_ollama, monkeypatch):
+    import core.ai_engine as ai_engine
+    calls = []
+    monkeypatch.setattr(ai_engine, "_call_tool", lambda name, args: calls.append(name) or "ok.")
+    monkeypatch.setattr(ai_engine, "rewrite_action_reply", lambda base, *a, **k: base)
+    fake_ollama.tool_call = ("tell_time", {})
+    ai_engine.resolve_tool_call("tell me the time and the time")
+    assert calls == ["tell_time"]
+
+
+def test_single_tool_call_does_not_make_a_second_request(fake_ollama, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "_call_tool", lambda name, args: "ok.")
+    monkeypatch.setattr(ai_engine, "rewrite_action_reply", lambda base, *a, **k: base)
+    fake_ollama.tool_call = ("tell_time", {})
+    ai_engine.resolve_tool_call("what time is it")
+    assert len([r for r in fake_ollama.requests if r[0].endswith("/api/chat")]) == 1
+
+
+def test_chat_streams_sentences_as_they_finish(fake_ollama):
+    import core.ai_engine as ai_engine
+    fake_ollama.chat_reply = "Good evening. All systems are running! Anything else?"
+    heard = []
+    reply = ai_engine.chat_reply("hello", {}, on_sentence=heard.append)
+    assert heard == ["Good evening.", "All systems are running!", "Anything else?"]
+    assert reply == "Good evening. All systems are running! Anything else?"
+    assert fake_ollama.requests[-1][1]["stream"] is True
+
+
+def test_chat_stream_skips_non_english_sentences(fake_ollama):
+    import core.ai_engine as ai_engine
+    fake_ollama.chat_reply = "Hello there. 你好吗 friend. Bye now."
+    heard = []
+    ai_engine.chat_reply("hello", {}, on_sentence=heard.append)
+    assert all(not ai_engine.contains_cjk(s) for s in heard)
+
+
+def test_conversation_passes_the_stream_sink(fake_ollama):
+    from core import conversation
+    fake_ollama.chat_reply = "First one. Second one."
+    heard = []
+    conversation.set_stream_sink(heard.append)
+    assert conversation.chat_reply("tell me a story") == "First one. Second one."
+    assert heard == ["First one.", "Second one."]
+
+
+def test_chat_uses_the_bigger_model_only_when_installed(fake_ollama, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "MODEL", "small:3b")
+    monkeypatch.setattr(ai_engine, "CHAT_MODEL", "big:8b")
+    monkeypatch.setitem(ai_engine._health, "models", {"small:3b", "big:8b"})
+    assert ai_engine.chat_model() == "big:8b"
+    monkeypatch.setitem(ai_engine._health, "models", {"small:3b"})
+    assert ai_engine.chat_model() == "small:3b"
+    monkeypatch.setattr(ai_engine, "CHAT_MODEL", "")
+    assert ai_engine.chat_model() == "small:3b"
+
+
+def test_personality_switch_is_saved_and_reaches_the_chat_prompt(fake_ollama):
+    import core.ai_engine as ai_engine
+    from core import personality_engine as pe
+    from core.command_router import route_command
+    from core.dispatcher import dispatch_command
+    for text in ("be tsundere", "tsundere mode", "switch to tsundere", "set personality to tsundere"):
+        pe.set_personality("calm")
+        assert route_command(text) == "set personality tsundere", text
+    assert "tsundere" in dispatch_command("set personality tsundere").reply.lower()
+    assert pe.get_personality() == "tsundere"
+    import memory
+    assert memory.get_personality() == "tsundere"
+    system = ai_engine.build_chat_messages("hi", {"personality": "tsundere"})[0]["content"]
+    assert "tsundere" in system
+    pe.CURRENT_PERSONALITY = None  # a restart reads it back from the profile
+    assert pe.get_personality() == "tsundere"
+
+
+def test_unknown_personality_and_be_phrases_are_not_hijacked():
+    from parser import normalize_command
+    assert not normalize_command("be quiet").startswith("set personality")
+    assert not normalize_command("be there at 5").startswith("set personality")
+    from core.dispatcher import dispatch_command
+    assert "only know" in dispatch_command("set personality pirate").reply

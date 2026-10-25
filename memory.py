@@ -116,6 +116,14 @@ def get_name():
     return load_profile().get("name")
 
 
+def set_personality(name):
+    update_profile(lambda profile: profile.__setitem__("personality", name))
+
+
+def get_personality():
+    return load_profile().get("personality")
+
+
 # =========================
 # RECENT LISTS
 # =========================

@@ -3,6 +3,7 @@
 import random
 
 import memory
+from core import personality_engine
 from tools.registry import Param, tool
 
 
@@ -90,3 +91,40 @@ def _parse_ask_name(text):
 def get_name():
     name = memory.get_name()
     return f"You're {name}." if name else "You haven't told me your name yet. Say \"my name is ...\"."
+
+
+# ---- personality switching ("be tsundere") -------------------------------
+_PERSONA_PREFIXES = ("set personality to ", "set personality ", "personality ", "switch to ",
+                     "change to ", "be more ", "be ", "act ", "act like a ", "act like ")
+
+
+def _parse_personality(text):
+    text = text.strip().rstrip("?.! ")
+    for suffix in (" mode", " personality"):
+        if text.endswith(suffix):
+            text = text[:-len(suffix)]
+    if text in personality_engine.personalities():  # "tsundere mode"
+        return "set personality " + text
+    for prefix in _PERSONA_PREFIXES:
+        if text.startswith(prefix):
+            name = text[len(prefix):].strip()
+            if name in personality_engine.personalities():
+                return "set personality " + name
+    return None
+
+
+@tool("set_personality", "Switch Hina's personality (for example calm or tsundere).",
+      {"name": Param("The personality: " + ", ".join(personality_engine.personalities()))},
+      command="set personality ", parse=_parse_personality, ai=True, priority=5)
+def set_personality(ctx):
+    name = ctx.arg.strip().lower()
+    if not personality_engine.set_personality(name):
+        return "I only know these personalities: " + ", ".join(personality_engine.personalities()) + "."
+    return personality_engine.SWITCH_REPLIES.get(name, f"Personality set to {name}.")
+
+
+@tool("get_personality", "Tell the user which personality Hina is using.",
+      command="which personality", exact_triggers=("which personality", "what personality are you",
+                                                   "what personality do you have"), priority=5)
+def get_personality():
+    return f"I'm being {personality_engine.get_personality()} right now."

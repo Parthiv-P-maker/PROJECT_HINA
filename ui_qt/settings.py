@@ -16,7 +16,8 @@ from utils.paths import user_data_dir
 logger = get_logger(__name__)
 
 DEFAULTS = {
-    "ai_model": "qwen2.5:3b",
+    "ai_model": "qwen2.5:3b",     # fast model: commands, tool calls, summaries
+    "smart_model": "",            # optional bigger local model for conversation ("" = use ai_model)
     "local_only": False,          # True: no cloud TTS (edge-tts) - offline pyttsx3 voice instead
     "tts_voice": "en-US-AriaNeural",
     "whisper_model": "auto",      # auto = small.en on GPU, base.en on CPU
@@ -113,6 +114,7 @@ def apply_runtime(settings):
         import core.ai_engine as ai_engine
         if settings.get("ai_model"):
             ai_engine.MODEL = settings["ai_model"]
+        ai_engine.CHAT_MODEL = settings.get("smart_model") or ""
     except Exception as exc:
         logger.warning("Couldn't apply AI model setting: %s", exc)
     try:

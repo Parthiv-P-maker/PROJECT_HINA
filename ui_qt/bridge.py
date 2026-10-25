@@ -72,6 +72,7 @@ class HinaBridge(QObject):
     voice_state = Signal(str)            # waiting / listening / transcribing
     mic_level = Signal(float)            # 0..1 while recording
     side_text = Signal(str)              # countdown ticks etc.
+    speech_chunk = Signal(str)           # a finished sentence of a chat reply that is still streaming
     notice = Signal(str)                 # a timer went off: show it and say it
     call_soon = Signal(int, object)      # (delay ms, callable) to run on the GUI thread
     busy_changed = Signal(bool)
@@ -87,6 +88,7 @@ class HinaBridge(QObject):
         self._pending_mode = None
         self.var_shim, self.label_shim, self.app_shim = _VarShim(self), _LabelShim(), _AppShim(self)
         self.call_soon.connect(self._on_call_soon)
+        conversation.set_stream_sink(self.speech_chunk.emit)  # sentences, as the model writes them
         timers.set_notifier(self.notice.emit)  # fires on the timer's thread; Qt queues it to the GUI thread
         self._result_raw.connect(self._on_result)
         self._heard_raw.connect(self._on_heard)

@@ -11,6 +11,7 @@ Private mode (settings.json "private_mode") stops turns and facts being written;
 reading and deleting still work.
 """
 
+import json
 import os
 import re
 import sqlite3
@@ -58,6 +59,10 @@ def _connect():
     conn = sqlite3.connect(db_path(), timeout=5)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)  # cheap no-op once the tables exist
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)")}
+    if "embedding" not in columns:  # added with semantic recall (roadmap 1.6)
+        conn.execute("ALTER TABLE facts ADD COLUMN embedding TEXT")
+        conn.commit()
     return conn
 
 
@@ -172,6 +177,11 @@ def add_fact(text, source="user"):
         if fact["text"].lower() == text.lower():
             return fact["id"]
     return _write("INSERT INTO facts (text, source, created) VALUES (?, ?, ?)", (text, source, _now()))
+
+
+def set_fact_embedding(fact_id, vector):
+    """Cache a fact's embedding (a list of floats) so it is only computed once."""
+    _write("UPDATE facts SET embedding = ? WHERE id = ?", (json.dumps(vector), fact_id))
 
 
 def list_facts():

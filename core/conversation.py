@@ -16,7 +16,7 @@ import re
 import threading
 from datetime import datetime
 
-from core import memory_store
+from core import memory_store, semantic
 from core.ai_loader import get_ai_engine
 from core.context_manager import context_manager
 from utils.logger import get_logger
@@ -35,6 +35,13 @@ UNKNOWN_REPLIES = [
 ]
 
 _summary_lock = threading.Lock()
+_stream_sink = None  # called with each finished sentence while a chat reply is still streaming
+
+
+def set_stream_sink(fn):
+    """UIs register a callback(sentence) to start speaking before the reply is complete."""
+    global _stream_sink
+    _stream_sink = fn
 
 
 _QUESTION_START = re.compile(
@@ -81,8 +88,12 @@ def chat_reply(text):
     if engine is not None and hasattr(engine, "chat_reply"):
         try:
             summary, history = prompt_history()
-            facts = [f["text"] for f in memory_store.relevant_facts(text)]
-            reply = engine.chat_reply(text, chat_context(), history, summary, facts)
+            picked = semantic.relevant_facts(text)  # by meaning; None without the embedding model
+            if picked is None:
+                picked = memory_store.relevant_facts(text)  # by shared words
+            facts = [f["text"] for f in picked]
+            extra = {"on_sentence": _stream_sink} if _stream_sink else {}
+            reply = engine.chat_reply(text, chat_context(), history, summary, facts, **extra)
             if reply:
                 return reply
             missing = engine.missing_model() if hasattr(engine, "missing_model") else None
