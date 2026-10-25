@@ -21,7 +21,8 @@ DEFAULTS = {
     "local_only": False,          # True: no cloud TTS (edge-tts) - offline pyttsx3 voice instead
     "tts_voice": "en-US-AriaNeural",
     "whisper_model": "auto",      # auto = small.en on GPU, base.en on CPU
-    "wake_word": False,           # listen for "Hey Hina" in the background (always-on mic: opt-in)
+    "wake_word": False,           # listen for the wake phrase in the background (always-on mic: opt-in)
+    "wake_phrase": "jarvis",      # "jarvis" ("Hey Jarvis") or "hina" ("Hey Hina"); see core/wake.py
     "follow_up": True,            # after a spoken reply, keep listening a few seconds for a follow-up
     "follow_up_seconds": 8,
     "toggle_hotkey": "ctrl+h",
@@ -40,6 +41,7 @@ DEFAULTS = {
                                   # apps "focus mode" offers to close
 }
 
+WAKE_PHRASES = [("jarvis", "Hey Jarvis"), ("hina", "Hey Hina")]
 SUGGESTED_MODELS = ["qwen2.5:3b", "qwen2.5:7b", "llama3.2:3b", "phi3:mini"]
 WHISPER_MODELS = ["auto", "tiny.en", "base.en", "small.en", "medium.en", "large-v3"]
 TTS_VOICES = [

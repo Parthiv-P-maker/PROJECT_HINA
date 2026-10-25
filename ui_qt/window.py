@@ -310,6 +310,7 @@ class HinaWindow(QWidget):
         b.listening_changed.connect(self._on_listening_changed)
         b.mode_changed.connect(lambda m: self.status.mode.set(m, "active"))
         b.wake_heard.connect(self._on_wake)
+        b.wake_error.connect(lambda message: self.console.add_system(message, "warn"))
 
         self.hotkey_toggle.connect(self.toggle_visibility)
         self.hotkey_talk.connect(self._hotkey_talk)
@@ -479,7 +480,7 @@ class HinaWindow(QWidget):
 
     # ---- 2.2 wake word / 2.6 follow-up listening ----------------------
     def set_wake_word(self, on, save=True, announce=True):
-        """Turn "Hey Hina" listening on or off (settings toggle, voice command, or startup)."""
+        """Turn wake-phrase listening on or off (settings toggle, voice command, or startup)."""
         on = bool(on)
         if on:
             self.bridge.start_wake()
@@ -492,14 +493,16 @@ class HinaWindow(QWidget):
         if not self.bridge.listening:
             self.status.mic.set(self._mic_idle_label(), "ok")
         if announce:
-            self.console.add_system('Wake word on. Say "Hey Hina" any time.' if on else "Wake word off.",
+            from core import wake
+            phrase = wake.label(self.settings.get("wake_phrase"))
+            self.console.add_system(f'Wake word on. Say "{phrase}" any time.' if on else "Wake word off.",
                                     "ok" if on else "info")
 
     def _mic_idle_label(self):
         return "WAKE" if self.bridge.wake_running else "READY"
 
     def _on_wake(self, command):
-        """'Hey Hina' was heard (runs on the GUI thread)."""
+        """The wake phrase was heard (runs on the GUI thread)."""
         self._touch()
         if not self.isVisible():
             self.show_window()
@@ -666,6 +669,9 @@ class HinaWindow(QWidget):
                 self.bridge.start_wake()
         if bool(old.get("wake_word")) != bool(s.get("wake_word")):
             self.set_wake_word(bool(s.get("wake_word")), save=False)
+        elif s.get("wake_word") and old.get("wake_phrase") != s.get("wake_phrase"):
+            self.bridge.stop_wake()  # restart so the listener uses the new phrase
+            self.set_wake_word(True, save=False)
 
     def _on_settings_saved(self, s):
         s = dict(s, compact=self.compact, window_pos=self.settings.get("window_pos"))

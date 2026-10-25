@@ -88,7 +88,8 @@ class HinaBridge(QObject):
     busy_changed = Signal(bool)
     listening_changed = Signal(bool)
     mode_changed = Signal(str)
-    wake_heard = Signal(str)             # "Hey Hina" was said; the text is any command that followed it
+    wake_heard = Signal(str)             # the wake phrase was said; the text is any command that followed it
+    wake_error = Signal(str)             # the wake listener hit a problem the user should know about
 
     def __init__(self, settings=None, speech=None, parent=None):
         super().__init__(parent)
@@ -233,13 +234,14 @@ class HinaBridge(QObject):
         return self._wake is not None and self._wake.running
 
     def start_wake(self, listener=None):
-        """Listen for "Hey Hina" in the background. `listener` replaces the real one in tests."""
+        """Listen for the wake phrase in the background. `listener` replaces the real one in tests."""
         if self.wake_running:
             return True
         if listener is None:
             from core.wake import WakeListener
             listener = WakeListener(on_wake=self._wake_fired, transcriber=self.speech().transcriber,
-                                    is_paused=self._wake_paused)
+                                    is_paused=self._wake_paused, phrase=self.settings.get("wake_phrase"),
+                                    on_error=self.wake_error.emit)
         self._wake = listener
         self._wake.start()
         return True

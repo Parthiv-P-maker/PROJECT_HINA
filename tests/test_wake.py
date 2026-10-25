@@ -1,4 +1,4 @@
-"""2.2 wake word ("Hey Hina") and 2.6 follow-up listening."""
+"""2.2 wake word ("Hey Jarvis" by default, "Hey Hina" as an option) and 2.6 follow-up listening."""
 
 import os
 import sys
@@ -13,25 +13,47 @@ from core import wake
 
 
 @pytest.mark.parametrize("heard, woke, rest", [
+    ("Hey Jarvis!", True, ""),
+    ("Hey Jarvis, open Chrome.", True, "open Chrome"),
+    ("Jarvis, what's the time?", True, "what's the time"),
+    ("J.A.R.V.I.S., play music", True, "play music"),
+    ("Hey Travis, set a timer for 5 minutes", True, "set a timer for 5 minutes"),
+    ("Oh hey Jarvis!", True, ""),
+    ("Travis is coming over", False, ""),
+    ("I watched Iron Man with Jarvis in it", False, ""),
+    ("Hey Hina", False, ""),  # not the active phrase
+    ("", False, ""),
+])
+def test_match_jarvis(heard, woke, rest):
+    assert wake.match_wake(heard) == (woke, rest)
+
+
+@pytest.mark.parametrize("heard, woke, rest", [
     ("Hey Hina.", True, ""),
     ("Hey Hina, open Chrome.", True, "open Chrome"),
     ("Hina what's the time?", True, "what's the time"),
+    ("Hey Hannah, set a timer", True, "set a timer"),
     ("Hey Nina, set a timer for 5 minutes", True, "set a timer for 5 minutes"),
-    ("Oh hey Hina!", True, ""),
     ("OK Hina play music", True, "play music"),
     ("Heena", True, ""),
     ("Nina is coming over", False, ""),
     ("He wants to see Hina later", False, ""),
     ("hey china", False, ""),
-    ("", False, ""),
+    ("Hey Jarvis", False, ""),
 ])
-def test_match_wake(heard, woke, rest):
-    assert wake.match_wake(heard) == (woke, rest)
+def test_match_hina(heard, woke, rest):
+    assert wake.match_wake(heard, "hina") == (woke, rest)
 
 
-def test_the_wake_prompt_cannot_wake_hina_by_itself():
+@pytest.mark.parametrize("phrase", list(wake.WAKE_PHRASES))
+def test_the_wake_prompt_cannot_wake_hina_by_itself(phrase):
     """On unclear audio Whisper echoes its prompt; that echo must not count."""
-    assert wake.match_wake(wake.WAKE_PROMPT) == (False, "")
+    assert wake.match_wake(wake.WAKE_PHRASES[phrase]["prompt"], phrase) == (False, "")
+
+
+def test_phrase_names():
+    assert wake.phrase_key("Hey Hina") == "hina" and wake.phrase_key(None) == "jarvis"
+    assert wake.label("hina") == "Hey Hina" and wake.label("nonsense") == "Hey Jarvis"
 
 
 # ---- cutting speech out of the stream ---------------------------------------------
@@ -82,13 +104,14 @@ def _blocks_once(count=20):
     return open_blocks, opened
 
 
-def test_listener_wakes_with_the_command_that_followed():
+def test_listener_wakes_and_re_hears_the_command_with_the_command_prompt():
     woke = threading.Event()
     got, prompts = [], []
 
     def transcriber(audio, prompt=None):
         prompts.append(prompt)
-        return "Hey Hina, open Spotify."
+        # the wake prompt is good at the name, the command prompt at the command
+        return "Hey Jarvis, OpenCrow." if prompt else "Hey Jarvis, open Chrome."
 
     blocks, _ = _blocks_once()
     listener = wake.WakeListener(on_wake=lambda c: (got.append(c), woke.set()), transcriber=transcriber,
@@ -98,14 +121,40 @@ def test_listener_wakes_with_the_command_that_followed():
         assert woke.wait(3)
     finally:
         listener.stop()
-    assert got == ["open Spotify"]
-    assert prompts == [wake.WAKE_PROMPT] and not listener.running
+    assert got == ["open Chrome"]
+    assert prompts == [wake.WAKE_PROMPT, None] and not listener.running
+
+
+def test_wake_alone_is_transcribed_once():
+    got, prompts = [], []
+    blocks, _ = _blocks_once()
+    listener = wake.WakeListener(on_wake=got.append, open_blocks=blocks, vad=_Vad(), phrase="hina",
+                                 transcriber=lambda a, prompt=None: prompts.append(prompt) or "Hey Hina.")
+    gen = blocks(lambda: len(got) == 0)  # run synchronously: stop reading once she has woken
+    listener.open_blocks = lambda keep: gen
+    listener._listen_once()
+    assert got == [""] and prompts == [wake.WAKE_PHRASES["hina"]["prompt"]]
+
+
+def test_mic_errors_are_reported_once():
+    errors = []
+
+    def broken(keep_going):
+        raise OSError("device busy")
+        yield  # pragma: no cover
+
+    listener = wake.WakeListener(on_wake=lambda c: None, transcriber=lambda a, prompt=None: "",
+                                 open_blocks=broken, vad=_Vad(), on_error=errors.append)
+    listener.start()
+    time.sleep(0.3)
+    listener.stop()
+    assert len(errors) == 1 and "device busy" in errors[0]
 
 
 def test_other_speech_does_not_wake():
     called = []
     blocks, _ = _blocks_once()
-    listener = wake.WakeListener(on_wake=called.append, transcriber=lambda a, prompt=None: "pass the salt",
+    listener = wake.WakeListener(on_wake=called.append, transcriber=lambda a, prompt=None: "Hey Hina, pass the salt",
                                  open_blocks=blocks, vad=_Vad())
     listener.start()
     time.sleep(0.5)
@@ -269,9 +318,16 @@ def test_wake_toggle_by_voice_and_settings(hud, qtbot, monkeypatch):
     qtbot.waitUntil(lambda: listener.running, timeout=2000)
     assert hud.settings["wake_word"] is True
     assert hud.status.mic.value == "WAKE"  # the status panel shows the mic is armed
-    assert "Wake word on" in _text(hud)
+    assert 'Wake word on. Say "Hey Jarvis"' in _text(hud)
+    hud.apply_settings(dict(hud.settings, wake_phrase="hina"))  # a new phrase restarts the listener
+    assert listener.running and 'Say "Hey Hina"' in _text(hud)
     hud.apply_settings(dict(hud.settings, wake_word=False))
     assert not listener.running and "Wake word off." in _text(hud)
+
+
+def test_wake_errors_show_in_the_log(hud, qtbot):
+    hud.bridge.wake_error.emit("The wake word can't use the microphone (device busy).")
+    assert "device busy" in _text(hud)
 
 
 def test_wake_listener_pauses_while_busy_or_listening(hud, qtbot):

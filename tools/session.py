@@ -46,9 +46,11 @@ def stop_speaking():
 
 _WAKE_ON = {"turn on wake word", "turn on the wake word", "enable wake word", "enable the wake word",
             "start wake word", "wake word on", "listen for hey hina", "start listening for hey hina",
+            "listen for hey jarvis", "start listening for hey jarvis",
             "listen for your name", "always listen", "start always listening"}
 _WAKE_OFF = {"turn off wake word", "turn off the wake word", "disable wake word", "disable the wake word",
              "stop wake word", "wake word off", "stop listening for hey hina", "stop listening for your name",
+             "stop listening for hey jarvis",
              "stop always listening", "stop listening in the background"}
 
 
@@ -61,7 +63,7 @@ def _parse_wake(text):
     return None
 
 
-@tool("wake_word", 'Turn the "Hey Hina" wake word on or off.', {"state": Param("'on' or 'off'")},
+@tool("wake_word", "Turn the wake word (\"Hey Jarvis\") on or off.", {"state": Param("'on' or 'off'")},
       command="wake word ", parse=_parse_wake, priority=5)
 def wake_word(ctx):
     from core import wake
