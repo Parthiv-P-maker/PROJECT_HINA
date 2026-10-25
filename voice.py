@@ -1,5 +1,7 @@
 import asyncio
 import os
+import queue
+import tempfile
 import threading
 
 from utils.helpers import clean_text
@@ -30,6 +32,12 @@ VOICE = "en-US-AriaNeural"
 _speaking = 0
 _speaking_lock = threading.Lock()
 
+# One speaker thread drains this queue, so utterances never overlap or fight
+# over the audio device. Items are (text, done_event_or_None).
+_queue = queue.Queue()
+_worker = None
+_worker_lock = threading.Lock()
+
 
 def is_speaking():
     """True while speech is queued, synthesised or playing (the mic must stay shut)."""
@@ -43,24 +51,26 @@ def _mark(delta):
 
 
 async def _speak_async(text):
-    filename = "hina_voice.mp3"
-
-    communicate = edge_tts.Communicate(text, VOICE)
-    await communicate.save(filename)
-
-    if _HAS_PYGAME:
-        pygame.mixer.music.load(filename)
-        pygame.mixer.music.play()
-
-        while pygame.mixer.music.get_busy():
-            await asyncio.sleep(0.1)
-
-        pygame.mixer.music.unload()
-
+    # A unique file per utterance: nothing else can overwrite or delete it mid-play.
+    handle, filename = tempfile.mkstemp(prefix="hina_voice_", suffix=".mp3")
+    os.close(handle)
     try:
-        os.remove(filename)
-    except Exception:
-        pass
+        communicate = edge_tts.Communicate(text, VOICE)
+        await communicate.save(filename)
+
+        if _HAS_PYGAME:
+            pygame.mixer.music.load(filename)
+            pygame.mixer.music.play()
+
+            while pygame.mixer.music.get_busy():
+                await asyncio.sleep(0.1)
+
+            pygame.mixer.music.unload()
+    finally:
+        try:
+            os.remove(filename)
+        except Exception:
+            pass
 
 
 def _speak_sync(text):
@@ -77,7 +87,7 @@ def _speak_sync(text):
 
 
 def _speak_thread(text):
-    """Run speech synthesis in a background thread (caller has already _mark(1)'d)."""
+    """Speak one utterance to completion (the caller has already _mark(1)'d)."""
     try:
         clean = clean_text(text)
         if _HAS_EDGE_TTS and _HAS_PYGAME:
@@ -86,7 +96,7 @@ def _speak_thread(text):
                 return
             except Exception as e:
                 logger.warning("edge_tts failed: %s", e)
-        
+
         # Fall back to pyttsx3
         _speak_sync(clean)
     except Exception as e:
@@ -95,36 +105,38 @@ def _speak_thread(text):
         _mark(-1)
 
 
+def _speaker_loop():
+    while True:
+        text, done = _queue.get()
+        try:
+            _speak_thread(text)
+        finally:
+            if done is not None:
+                done.set()
+
+
+def _ensure_worker():
+    global _worker
+    with _worker_lock:
+        if _worker is None or not _worker.is_alive():
+            _worker = threading.Thread(target=_speaker_loop, name="hina-speaker", daemon=True)
+            _worker.start()
+
+
 def speak(text, blocking=False):
     """
-    Speak the given text.
-    
+    Queue text to be spoken, in order, by the single speaker thread.
+
     Args:
         text: The text to speak
-        blocking: If True, block until speech completes. If False, run in background thread.
+        blocking: If True, wait until this utterance has been spoken.
     """
     clean = clean_text(text)
-    
-    if not blocking:
-        # Run in background thread to avoid blocking UI
-        _mark(1)  # before the thread starts, so there is no gap the mic could slip into
-        thread = threading.Thread(
-            target=_speak_thread,
-            args=(clean,),
-            daemon=True
-        )
-        thread.start()
-    else:
-        # Blocking mode for testing or when needed
-        _mark(1)
-        try:
-            if _HAS_EDGE_TTS and _HAS_PYGAME:
-                try:
-                    asyncio.run(_speak_async(clean))
-                    return
-                except Exception as e:
-                    logger.warning("edge_tts failed: %s", e)
+    done = threading.Event() if blocking else None
 
-            _speak_sync(clean)
-        finally:
-            _mark(-1)
+    _mark(1)  # before queuing, so there is no gap the mic could slip into
+    _ensure_worker()
+    _queue.put((clean, done))
+
+    if done is not None:
+        done.wait()

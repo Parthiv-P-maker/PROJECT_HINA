@@ -40,10 +40,10 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 | **0.3** | ✅ **Fix Ollama calls:** add `"stream": False` to `/api/generate`; move `temperature`/`num_predict` into `"options"`; drop `max_length`; add a 1-second health check so a missing Ollama is skipped instantly | 🔴 | S | B1, B2 |
 | 0.4 | ✅ Add the missing `find file` handler; make file and folder search **scoped** (Desktop, Documents, Downloads, project folders) with a result cap, and stop `open_app` from falling back to opening random files | 🔴 | S | B4, B8 |
 | 0.5 | ✅ Fix the parser: whole-word removal of "my" (`re.sub(r"\bmy\b", …)`), and tighter `find` matching | 🔴 | S | B5, B6 |
-| 0.6 | Make timers report through the GUI and voice; give each timer an ID with its own cancel event (`threading.Event`) | 🟠 | S | B7 |
+| 0.6 | ✅ Make timers report through the GUI and voice; give each timer an ID with its own cancel event (`threading.Event`) *(done: `core/timers.py`; a finished timer shows in the HUD/window and is spoken; "cancel timer" cancels all running timers)* | 🟠 | S | B7 |
 | 0.7 | ✅ Absolute paths: build `MEMORY_PROFILE_PATH` from `Path(__file__)`, or better, store user data under `%APPDATA%\Hina\` *(done: profile, history and facts live in `%APPDATA%\ProjectHina\` (or `HINA_DATA_DIR`); the old `memory/user_profile.json` is copied there once; saves are atomic and a corrupt file is kept as `*.corrupt`)* | 🟠 | S | B9 |
-| 0.8 | Voice: unique temp file per utterance plus a speech **queue** (one speaker thread) | 🟠 | S | B10 |
-| 0.9 | Housekeeping: delete `main.py`/`personality.py` (or move them to `legacy/`); add `build/`, `dist/` and `*.mp3` to `.gitignore`; rewrite `requirements.txt` to the ~10 packages Hina actually uses; fix the focus-border binding; only say "Opening X" when the action succeeded | 🟡 | S | B12, B13, §7 |
+| 0.8 | ✅ Voice: unique temp file per utterance plus a speech **queue** (one speaker thread) *(done: `voice.speak` queues to one `hina-speaker` thread; temp files come from `tempfile`)* | 🟠 | S | B10 |
+| 0.9 | ✅ Housekeeping: delete `main.py`/`personality.py` (or move them to `legacy/`); add `build/`, `dist/` and `*.mp3` to `.gitignore`; rewrite `requirements.txt` to the ~10 packages Hina actually uses; fix the focus-border binding; only say "Opening X" when the action succeeded *(done: `main.py`/`personality.py` deleted; `build/`, `dist/`, `*.mp3` untracked and ignored; `requirements.txt` is now the 11 packages Hina imports; the classic window's focus border works)* | 🟡 | S | B12, B13, §7 |
 | 0.10 | ✅ **Tests:** `pytest` for `parser.normalize_command`, the dispatcher and the calculator; a mock Ollama for `ai_engine` | 🟡 | M | |
 | 0.11 | Finish and merge `feature/ollama-tool-calling` into `main` once 0.1–0.3 are in | 🔴 | S | |
 

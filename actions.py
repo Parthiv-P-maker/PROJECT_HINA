@@ -1,5 +1,4 @@
 import os
-import threading
 import time
 import webbrowser
 from datetime import datetime
@@ -12,6 +11,7 @@ except Exception:
     psutil = None
     _HAS_PSUTIL = False
 
+from core import timers
 from core.mode_manager import APP_ALIASES
 from utils.file_search import search as _search_files
 from utils.launcher import launch, kill_process
@@ -133,34 +133,15 @@ def search_and_open_file(file_name):
     return f"Opening {os.path.basename(hits[0])} 🌸"
 
 
-timer_thread = None
-timer_cancelled = False
-
-
-def timer_finished(seconds):
-    global timer_cancelled
-
-    time.sleep(seconds)
-
-    if not timer_cancelled:
-        print("\nHina: Timer finished ⏰🌸")
-
-
 def set_timer(seconds):
-    global timer_thread, timer_cancelled
-
-    timer_cancelled = False
-    timer_thread = threading.Thread(target=timer_finished, args=(seconds,), daemon=True)
-    timer_thread.start()
-
+    timers.start(seconds)
     return f"Timer set for {seconds} seconds 🌸"
 
 
 def cancel_timer():
-    global timer_cancelled
-
-    timer_cancelled = True
-    return "Timer cancelled 🌸"
+    if timers.cancel():
+        return "Timer cancelled 🌸"
+    return "No timer is running 🌸"
 
 
 def countdown(seconds):

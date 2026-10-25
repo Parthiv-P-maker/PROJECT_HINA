@@ -158,8 +158,8 @@ The project has been fully refactored into a scalable modular architecture.
 ```text
 project_hina/
 │
+├── hina.py
 ├── gui.py
-├── main.py
 ├── parser.py
 ├── actions.py
 ├── memory.py
@@ -247,10 +247,10 @@ which stays as a fallback. `hina.py` also falls back to it if PySide6 isn't inst
 python gui.py
 ```
 
-### CLI Mode
+### Classic window
 
 ```bash
-python main.py
+python hina.py --classic
 ```
 
 ---

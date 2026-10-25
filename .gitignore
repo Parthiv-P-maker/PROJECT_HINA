@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 hina_voice.mp3
 .env
+# build output
+build/
+dist/
+*.mp3

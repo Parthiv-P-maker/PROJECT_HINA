@@ -293,6 +293,7 @@ class HinaWindow(QWidget):
         b.voice_state.connect(self._on_voice_state)
         b.mic_level.connect(self.core.set_level)
         b.side_text.connect(lambda text: self.console.add_system(text))
+        b.notice.connect(self._on_notice)
         b.busy_changed.connect(lambda _: self.refresh_state())
         b.listening_changed.connect(self._on_listening_changed)
         b.mode_changed.connect(lambda m: self.status.mode.set(m, "active"))
@@ -366,6 +367,10 @@ class HinaWindow(QWidget):
         if result.should_exit:
             QTimer.singleShot(result.exit_delay_ms or 1800, self.quit_app)
         self.refresh_state()
+
+    def _on_notice(self, text):
+        self.console.add_reply(text)
+        self.speak(text)
 
     def load_history(self, limit=HISTORY_ON_START):
         """Show the last few turns from earlier sessions (greyed) so the log survives restarts."""

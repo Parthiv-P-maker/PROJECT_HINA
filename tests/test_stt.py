@@ -225,6 +225,31 @@ def test_voice_module_tracks_speaking(monkeypatch):
     assert not voice.is_speaking()
 
 
+# Imported at load time: conftest swaps voice.speak for a recorder once tests start.
+from voice import speak as real_speak  # noqa: E402
+
+
+def test_speech_is_queued_in_order_and_one_at_a_time(monkeypatch):
+    import voice
+    spoken, overlap, active = [], [], [0]
+
+    def fake_utterance(text):
+        active[0] += 1
+        overlap.append(active[0])
+        time.sleep(0.02)
+        spoken.append(text)
+        active[0] -= 1
+        voice._mark(-1)
+
+    monkeypatch.setattr(voice, "_speak_thread", fake_utterance)
+    for word in ("one", "two", "three"):
+        real_speak(word)
+    real_speak("four", blocking=True)
+    assert spoken == ["one", "two", "three", "four"]
+    assert max(overlap) == 1
+    assert not voice.is_speaking()
+
+
 # --- through the window -------------------------------------------------
 
 def fake_speech(gui, monkeypatch, text="", error=None, delay=0.0):

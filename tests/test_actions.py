@@ -1,4 +1,10 @@
+import threading
+import time
+
+import pytest
+
 import actions
+from core import timers
 
 
 class TestCalculate:
@@ -139,12 +145,39 @@ class TestWebSearch:
 
 
 class TestTimers:
-    def test_set_and_cancel(self, monkeypatch):
-        monkeypatch.setattr(actions.time, "sleep", lambda s: None)
-        assert "Timer set for 5 seconds" in actions.set_timer(5)
-        actions.timer_thread.join(timeout=2)
+    @pytest.fixture(autouse=True)
+    def _clean(self):
+        timers.cancel()
+        yield
+        timers.cancel()
+        timers.set_notifier(None)
+
+    def test_timer_reports_when_it_finishes(self):
+        done = threading.Event()
+        messages = []
+        timers.set_notifier(lambda m: (messages.append(m), done.set()))
+        assert "Timer set for 1 seconds" in actions.set_timer(1)
+        assert done.wait(3)
+        assert "up" in messages[0]
+        assert timers.running() == []
+
+    def test_cancelled_timer_stays_quiet(self):
+        messages = []
+        timers.set_notifier(messages.append)
+        actions.set_timer(1)
         assert "cancelled" in actions.cancel_timer()
-        assert actions.timer_cancelled is True
+        time.sleep(1.3)
+        assert messages == []
+
+    def test_cancel_with_nothing_running(self):
+        assert "No timer" in actions.cancel_timer()
+
+    def test_timers_cancel_independently(self):
+        first, second = timers.start(60), timers.start(60)
+        assert first != second
+        assert timers.cancel(first) == 1
+        assert [i for i, _ in timers.running()] == [second]
+        assert timers.cancel() == 1
 
     def test_countdown_runs_and_finishes(self, monkeypatch, capsys):
         monkeypatch.setattr(actions.time, "sleep", lambda s: None)
