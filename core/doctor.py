@@ -26,7 +26,8 @@ PACKAGES = [
     ("faster-whisper", "faster_whisper", "speech-to-text and the wake word", True),
     ("edge-tts", "edge_tts", "the neural voice", False),
     ("pygame", "pygame", "playing the neural voice", False),
-    ("pyttsx3", "pyttsx3", "the offline voice", False),
+    ("pyttsx3", "pyttsx3", "the Windows voice (last fallback)", False),
+    ("piper-tts", "piper", "the offline neural voice", False),
     ("pywin32", "win32gui", "clipboard, window control, Spotify's current track", True),
     ("comtypes", "comtypes", "exact volume control", False),
     ("PyMuPDF", "fitz", "questions about PDFs", False),
@@ -126,15 +127,30 @@ def check_speech_models():
 
 
 def check_voice(settings):
+    """Synthesises one word with each voice (into memory; nothing is played)."""
     import voice
-    neural = getattr(voice, "_HINA_EDGE_AVAILABLE", voice._HAS_EDGE_TTS) and voice._HAS_PYGAME
+    out = []
+    offline_name = settings.get("offline_voice") or voice.PIPER_VOICE
+    voice.PIPER_VOICE = offline_name
+    if voice.piper_available(offline_name):
+        out.append(Check("Offline voice", OK, f"Piper {offline_name}"))
+    else:
+        out.append(Check("Offline voice", WARN, "not installed, so offline speech uses the robotic Windows voice",
+                         'pip install piper-tts, then: python -m piper.download_voices --download-dir '
+                         f'"{os.path.dirname(voice.piper_model_path(offline_name))}" {offline_name}'))
     if settings.get("local_only"):
-        return [Check("Voice", OK, "offline voice (local only is on in settings)")]
-    if neural:
-        return [Check("Voice", OK, f"neural voice {settings.get('tts_voice') or voice.VOICE} "
-                                    "(needs internet; falls back to the offline voice)")]
-    return [Check("Voice", WARN, "neural voice unavailable, the offline voice is used",
-                  "pip install edge-tts pygame")]
+        out.append(Check("Online voice", OK, "not used (local only is on in settings)"))
+        return out
+    if not (getattr(voice, "_HINA_EDGE_AVAILABLE", voice._HAS_EDGE_TTS) and voice._HAS_PYGAME):
+        out.append(Check("Online voice", WARN, "unavailable, the offline voice is used", "pip install edge-tts pygame"))
+        return out
+    try:
+        voice._edge_audio("OK")
+        out.append(Check("Online voice", OK, f"{settings.get('tts_voice') or voice.VOICE} answered"))
+    except Exception as exc:
+        out.append(Check("Online voice", WARN, f"the speech service refused or is unreachable ({exc})"[:160],
+                         "Check the internet connection; if it says 403: pip install -U edge-tts"))
+    return out
 
 
 def check_windows_features():

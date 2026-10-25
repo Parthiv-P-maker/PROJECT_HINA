@@ -18,11 +18,13 @@ logger = get_logger(__name__)
 DEFAULTS = {
     "ai_model": "qwen2.5:3b",     # fast model: commands, tool calls, summaries
     "smart_model": "",            # optional bigger local model for conversation ("" = use ai_model)
-    "local_only": False,          # True: no cloud TTS (edge-tts) - offline pyttsx3 voice instead
+    "local_only": False,          # True: no cloud TTS (edge-tts); the offline voice (Piper, else pyttsx3) instead
+    "offline_voice": "en_US-amy-medium",  # Piper voice in <data dir>/voices (python -m piper.download_voices)
     "tts_voice": "en-US-AriaNeural",
     "whisper_model": "auto",      # auto = small.en on GPU, base.en on CPU
     "wake_word": False,           # listen for the wake phrase in the background (always-on mic: opt-in)
     "wake_phrase": "jarvis",      # "jarvis" ("Hey Jarvis") or "hina" ("Hey Hina"); see core/wake.py
+    "voice_barge_in": True,       # with the wake word on, saying it while Hina talks interrupts her
     "follow_up": True,            # after a spoken reply, keep listening a few seconds for a follow-up
     "follow_up_seconds": 8,
     "toggle_hotkey": "ctrl+h",
@@ -132,6 +134,9 @@ def apply_runtime(settings):
         if not hasattr(voice, "_HINA_EDGE_AVAILABLE"):
             voice._HINA_EDGE_AVAILABLE = voice._HAS_EDGE_TTS
         voice._HAS_EDGE_TTS = voice._HINA_EDGE_AVAILABLE and not settings.get("local_only")
+        voice.PIPER_VOICE = settings.get("offline_voice") or DEFAULTS["offline_voice"]
+        if settings.get("local_only"):
+            voice.warm_up_offline_voice()  # every sentence uses it, so load it now
     except Exception as exc:
         logger.warning("Couldn't apply voice settings: %s", exc)
 
