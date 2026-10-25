@@ -52,7 +52,8 @@ def test_every_tool_is_routable_and_dispatchable(entry, machine):
 def test_known_commands_never_fall_through_to_the_unknown_reply(entry, machine):
     result = dispatch_command(_sample(entry))
     assert result.reply or entry.name in {"countdown", "stop_speaking"}  # silent on purpose
-    assert "don't know that one" not in result.reply
+    if entry.name != "quick_answer":  # offline, a lookup falls back to chat, which may not know either
+        assert "don't know that one" not in result.reply
 
 
 @pytest.mark.parametrize("entry", TOOLS, ids=lambda t: t.name)
@@ -63,6 +64,8 @@ def test_tier_comes_from_the_registry(entry):
 def test_confirm_tier_tools_ask_before_acting(machine):
     from core import memory_store
     memory_store.add_list_item("notepad", "something")  # clearing an empty list has nothing to ask about
+    from core import mode_manager
+    mode_manager.save_modes({**mode_manager.load_modes(), "notepad": {"apps": ["notepad"]}})
     for entry in TOOLS:
         if entry.tier == registry.CONFIRM:
             result = dispatch_command(entry.command + "notepad" if entry.takes_arg else entry.command)

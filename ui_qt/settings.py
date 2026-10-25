@@ -32,6 +32,9 @@ DEFAULTS = {
     "window_pos": None,           # [x, y]
     "show_on_start": True,
     "private_mode": False,        # True: don't record conversation history or new facts
+    "news_region": "IN",          # country code for news headlines and same-name cities
+    "distractions": ["discord", "steam", "whatsapp", "telegram", "epicgameslauncher", "instagram"],
+                                  # apps "focus mode" offers to close
 }
 
 SUGGESTED_MODELS = ["qwen2.5:3b", "qwen2.5:7b", "llama3.2:3b", "phi3:mini"]

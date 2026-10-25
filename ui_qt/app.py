@@ -58,6 +58,8 @@ def main(argv=None):
     boot(window, name)
     from core import reminders
     reminders.start()  # after the window exists, so missed reminders have somewhere to show
+    from utils import file_index
+    file_index.start_background_refresh()
     logger.info("Qt HUD started")
     return app.exec()
 
