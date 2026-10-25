@@ -137,6 +137,26 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 
 ---
 
+## PHASE 6: Everyday upgrades 🟠
+
+*Added 26 Oct 2026: features chosen for daily use once Phases 0–3 were in. The first three are the recommended next steps; 4.6 (daily briefing), 4.2 (OCR) and 4.1 (screen vision) are next too.*
+
+| ID | Feature | Pri | Size | Builds on |
+|---|---|---|---|---|
+| **6.1** | **Routines:** your own voice macros that run several things in order ("start my day" = weather, today's reminders and to-dos, then study mode; "wind down" = lower volume, dim the screen) | 🟠 | M | 1.4, 3.10, 4.6 |
+| **6.2** | **Dictation:** "type this…" or a hotkey; Hina types what you say into the focused window, with spoken punctuation | 🟠 | S | 2.1 |
+| **6.3** | **Study companion:** "quiz me on chapter 3", flashcards from a PDF, and "how much did I study this week?" from focus sessions | 🟠 | M | 3.6, 3.8 |
+| 6.4 | What's slowing my PC: top CPU and memory users; close one (asks first) | 🟡 | S | 3.1 |
+| 6.5 | Tidy my Downloads: sort into folders by type and age (asks first, with an undo list) | 🟡 | S | 3.8 |
+| 6.6 | App updates through winget: "any updates?", "update everything" (asks first) | 🟡 | S | 3.1 |
+| 6.7 | Screenshots of the screen or a window, saved and copied | 🟡 | S | |
+| 6.8 | Network checks: is the internet down, my IP, which Wi-Fi | 🔵 | S | |
+| 6.9 | Quick notes saved as Markdown and found by meaning ("note that…", "where's…?") | 🟡 | S | 1.6 |
+| 6.10 | Talk to Hina in Malayalam or Hindi: multilingual Whisper, a language setting, replies in that language | 🟡 | M | 2.5 |
+| 6.11 | Developer helpers: open a project in VS Code, git status of projects, run the tests, "what failed?" | 🔵 | S | 3.12 |
+
+---
+
 ## Dependency cheat-sheet
 
 | Upgrade | Needs first |
