@@ -45,7 +45,7 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 | 0.8 | ✅ Voice: unique temp file per utterance plus a speech **queue** (one speaker thread) *(done: `voice.speak` queues to one `hina-speaker` thread; temp files come from `tempfile`)* | 🟠 | S | B10 |
 | 0.9 | ✅ Housekeeping: delete `main.py`/`personality.py` (or move them to `legacy/`); add `build/`, `dist/` and `*.mp3` to `.gitignore`; rewrite `requirements.txt` to the ~10 packages Hina actually uses; fix the focus-border binding; only say "Opening X" when the action succeeded *(done: `main.py`/`personality.py` deleted; `build/`, `dist/`, `*.mp3` untracked and ignored; `requirements.txt` is now the 11 packages Hina imports; the classic window's focus border works)* | 🟡 | S | B12, B13, §7 |
 | 0.10 | ✅ **Tests:** `pytest` for `parser.normalize_command`, the dispatcher and the calculator; a mock Ollama for `ai_engine` | 🟡 | M | |
-| 0.11 | Finish and merge `feature/ollama-tool-calling` into `main` once 0.1–0.3 are in | 🔴 | S | |
+| 0.11 | ✅ Finish and merge `feature/ollama-tool-calling` into `main` once 0.1–0.3 are in *(done: Phases 0 and 1 merged into `main`)* | 🔴 | S | |
 
 **Exit criteria:** the window never freezes, the LLM can't run arbitrary code, all 25 commands work from the GUI, and tests are green.
 
@@ -76,8 +76,8 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 |---|---|---|---|---|
 | **2.1** | ✅ **Push-to-talk speech input.** Hold a hotkey or click a mic button → record with `sounddevice` → transcribe with **`faster-whisper`** (already installed, `base.en` or `small.en` on your CUDA GPU) → same pipeline as typed text | 🔴 | M | 0.2 |
 | **2.2** | **Wake word "Hey Hina".** `openWakeWord` (free, local; can train a custom "Hina" model) or Porcupine. Always-on, low CPU, pops the window and starts listening | 🟠 | M | 2.1 |
-| 2.3 | **Voice activity detection** (Silero VAD) so it stops recording when you stop talking | 🟠 | S | 2.1 |
-| 2.4 | **Barge-in:** speaking or pressing the hotkey stops Hina mid-sentence | 🟡 | S | 0.8, 2.1 |
+| 2.3 | ✅ **Voice activity detection** (Silero VAD) so it stops recording when you stop talking *(done: uses the Silero model bundled with faster-whisper, so there's no new package; loudness is the fallback)* | 🟠 | S | 2.1 |
+| 2.4 | ✅ **Barge-in:** speaking or pressing the hotkey stops Hina mid-sentence *(done for the hotkey, mic button, a new command and "stop"/"be quiet". Talking over her is not done: an open mic would hear her own voice without echo cancellation)* | 🟡 | S | 0.8, 2.1 |
 | 2.5 | **Better TTS:** play Edge-TTS audio from memory (no temp file), sentence-by-sentence for streaming, and add an offline voice (Piper / Kokoro) for when there's no internet; let the user choose the voice | 🟡 | M | 0.8, 1.3 |
 | 2.6 | **Conversation mode:** after a reply, keep listening for about 8 s for a follow-up without the wake word | 🟡 | S | 2.2 |
 | 2.7 | Visual feedback: listening / thinking / speaking states on the status dot and petals | 🟡 | S | 2.1 |
@@ -91,14 +91,14 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 | ID | Capability | Pri | Size | Notes |
 |---|---|---|---|---|
 | **3.1** | ✅ **Permission tiers:** each tool is tagged `safe` / `confirm` / `blocked`. Destructive actions (close app, delete, send, shutdown) ask "Should I?" by voice or button first. Everything gets an action log | 🔴 | S | Must land before the risky tools below |
-| 3.2 | System controls: volume, mute, brightness, Wi-Fi/Bluetooth toggle, lock, sleep, shutdown (confirm) | 🟠 | S | `pycaw`, `screen-brightness-control` |
-| 3.3 | Media control: play/pause/next, "what's playing", Spotify search | 🟠 | S | Media keys or Spotify Web API |
-| 3.4 | Reminders and alarms at times ("remind me at 6 to call mom"), persisted across restarts, plus Windows toast notifications | 🟠 | M | APScheduler + SQLite (1.5) |
+| 3.2 | ✅ System controls: volume, mute, brightness, Wi-Fi/Bluetooth toggle, lock, sleep, shutdown (confirm) *(done: volume (Windows Core Audio through comtypes; no pycaw needed), mute, brightness (WMI, laptop screens), lock, and sleep/shutdown/restart, which ask first; shutdown waits 10 s and "cancel shutdown" stops it. Wi-Fi/Bluetooth toggles not done)* | 🟠 | S | `pycaw`, `screen-brightness-control` |
+| 3.3 | ✅ Media control: play/pause/next, "what's playing", Spotify search *(done: play/pause, next and previous through media keys; "what's playing" reads Spotify's window title; "play X on Spotify" opens Spotify's search)* | 🟠 | S | Media keys or Spotify Web API |
+| 3.4 | ✅ Reminders and alarms at times ("remind me at 6 to call mom"), persisted across restarts, plus Windows toast notifications *(done: `core/reminders.py` with SQLite and a 5-second checker thread, and times like "at 6", "in 20 minutes" or "tomorrow at 9:30am"; reminders missed while Hina was closed are announced at start. They show in the HUD and are spoken; Windows toast notifications are not done yet)* | 🟠 | M | APScheduler + SQLite (1.5) |
 | 3.5 | Clipboard: "summarise what I copied", "translate this", "fix the grammar" | 🟠 | S | Great showcase for the LLM |
 | 3.6 | Window management: snap, switch to, minimise all, "focus mode" closes distractions | 🟡 | S | `pygetwindow` |
 | 3.7 | Web: weather, news headlines, quick factual answers with a search API, and summarising an open URL | 🟡 | M | |
 | 3.8 | Files: index chosen folders (fast search), "open the PDF I downloaded yesterday", **ask questions about a PDF/doc** (RAG, PyMuPDF is already installed) | 🟡 | L | 1.6 |
-| 3.9 | Notes and to-dos: "add milk to my list", "what's on my list" | 🟡 | S | 1.5 |
+| 3.9 | ✅ Notes and to-dos: "add milk to my list", "what's on my list" *(done: named lists, defaulting to to-do: add, show, remove items, clear (asks first), "what lists do I have")* | 🟡 | S | 1.5 |
 | 3.10 | Smarter modes: create or edit modes by voice ("add Discord to coding mode"), auto-suggest a mode by time of day | 🔵 | S | |
 | 3.11 | Integrations: Gmail/Calendar (read agenda, draft replies, always confirm before sending), GitHub notifications | 🔵 | L | OAuth, 3.1 |
 | 3.12 | Code helper: "explain this error" from the clipboard or terminal | 🔵 | M | |

@@ -16,7 +16,7 @@ import re
 import threading
 from datetime import datetime
 
-from core import memory_store, semantic
+from core import memory_store
 from core.ai_loader import get_ai_engine
 from core.context_manager import context_manager
 from utils.logger import get_logger
@@ -88,6 +88,7 @@ def chat_reply(text):
     if engine is not None and hasattr(engine, "chat_reply"):
         try:
             summary, history = prompt_history()
+            from core import semantic  # here, not at the top: semantic -> ai_engine -> tools -> this module
             picked = semantic.relevant_facts(text)  # by meaning; None without the embedding model
             if picked is None:
                 picked = memory_store.relevant_facts(text)  # by shared words

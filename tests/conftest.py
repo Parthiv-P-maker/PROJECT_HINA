@@ -35,6 +35,11 @@ _stub_if_missing(
 )
 
 
+# The reminder checker is a background thread the windows start; tests call reminders.check() directly.
+from core import reminders as _reminders  # noqa: E402
+_reminders._started.set()
+
+
 @pytest.fixture(autouse=True)
 def isolate_machine(tmp_path, monkeypatch):
     """Runs around every test."""
@@ -85,6 +90,45 @@ def isolate_machine(tmp_path, monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", _run)
 
+    # 3b. No volume, brightness, media keys, lock/sleep/shutdown (utils/device.py).
+    from utils import device
+    device_calls = []
+    fake_state = {"volume": 50, "muted": False, "brightness": 70}
+
+    def _record(name, result=None):
+        def fake(*args, **kwargs):
+            device_calls.append((name, args))
+            return result() if callable(result) else result
+        return fake
+
+    def _set_volume(percent):
+        device_calls.append(("set_volume", (percent,)))
+        fake_state["volume"] = max(0, min(100, int(percent)))
+        return fake_state["volume"]
+
+    def _change_volume(delta):
+        return _set_volume(fake_state["volume"] + delta)
+
+    def _set_brightness(percent):
+        device_calls.append(("set_brightness", (percent,)))
+        fake_state["brightness"] = max(0, min(100, int(percent)))
+        return fake_state["brightness"]
+
+    def _set_mute(muted):
+        device_calls.append(("set_mute", (muted,)))
+        fake_state["muted"] = bool(muted)
+
+    monkeypatch.setattr(device, "get_volume", lambda: (fake_state["volume"], fake_state["muted"]))
+    monkeypatch.setattr(device, "set_volume", _set_volume)
+    monkeypatch.setattr(device, "change_volume", _change_volume)
+    monkeypatch.setattr(device, "set_mute", _set_mute)
+    monkeypatch.setattr(device, "get_brightness", lambda: fake_state["brightness"])
+    monkeypatch.setattr(device, "set_brightness", _set_brightness)
+    for name in ("lock", "sleep", "shutdown", "media", "spotify_search", "_media_key", "_powershell"):
+        monkeypatch.setattr(device, name, _record(name))
+    monkeypatch.setattr(device, "cancel_shutdown", _record("cancel_shutdown", True))
+    monkeypatch.setattr(device, "now_playing", lambda: "")
+
     # 4. No browser windows.
     import webbrowser
     opened = []
@@ -107,7 +151,8 @@ def isolate_machine(tmp_path, monkeypatch):
     context_manager.recent_commands.clear()
     context_manager.recent_failures.clear()
 
-    return types.SimpleNamespace(spoken=spoken, os_calls=os_calls, browser=opened, profile=profile)
+    return types.SimpleNamespace(spoken=spoken, os_calls=os_calls, browser=opened, profile=profile,
+                                 device=device_calls, device_state=fake_state)
 
 
 @pytest.fixture

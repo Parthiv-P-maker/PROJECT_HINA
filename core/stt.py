@@ -5,6 +5,7 @@ Mic capture and the transcription model are injected, so everything here can be
 unit-tested without a microphone. The defaults are:
 
   * recorder     - sounddevice, 16 kHz mono, stops itself after a pause
+                   (Silero VAD decides what is speech; plain loudness if it can't load)
   * transcriber  - faster-whisper (offline, CPU, int8; model is downloaded once)
 
 Both heavy imports are lazy: importing this module costs nothing, and a missing
@@ -44,6 +45,11 @@ MIN_THRESHOLD = 0.001       # RMS floor; laptop mic arrays can be very quiet
 DEAD_MIC_LEVEL = 0.0005     # nothing louder than this in a whole attempt = silent input
 SPEAKING_WAIT_SECONDS = 15.0  # how long to wait for Hina to finish talking
 
+# Silero VAD (the copy bundled with faster-whisper): speech probability per 32 ms.
+VAD_START = 0.5             # speech starts when a block scores at least this
+VAD_END = 0.35              # and counts as a pause below this
+VAD_END_SILENCE_SECONDS = 0.7  # VAD is sure about pauses, so it can stop sooner than loudness
+
 # HINA_MIC_DEVICE picks the input: a device index or part of its name ("Realtek").
 MIC_DEVICE = os.environ.get("HINA_MIC_DEVICE") or None
 
@@ -59,9 +65,12 @@ def _rms(block):
     return (total / len(block)) ** 0.5 if len(block) else 0.0
 
 
-def collect_phrase(read_block, cancel=None, rms=_rms):
+def collect_phrase(read_block, cancel=None, rms=_rms, speech_prob=None):
     """
     Pull fixed-size blocks from read_block() and keep the spoken phrase.
+
+    With speech_prob(block) -> 0..1 (voice activity detection) a block is speech
+    when the model says so; without it, when it is clearly louder than the room.
 
     Returns the list of kept blocks, or None if cancelled / nothing was said.
     Raises SttError when the input was silent the whole time (muted mic,
@@ -69,7 +78,7 @@ def collect_phrase(read_block, cancel=None, rms=_rms):
     """
     max_blocks = int(MAX_RECORD_SECONDS / BLOCK_SECONDS)
     no_speech_blocks = int(NO_SPEECH_TIMEOUT / BLOCK_SECONDS)
-    end_blocks = int(END_SILENCE_SECONDS / BLOCK_SECONDS)
+    end_blocks = int((VAD_END_SILENCE_SECONDS if speech_prob else END_SILENCE_SECONDS) / BLOCK_SECONDS)
 
     pre_roll, kept, noise = [], [], []
     started, quiet, loudest = False, 0, 0.0
@@ -86,16 +95,20 @@ def collect_phrase(read_block, cancel=None, rms=_rms):
             noise.append(level)
             threshold = max(MIN_THRESHOLD, NOISE_FACTOR * sum(noise) / len(noise))
 
+        prob = speech_prob(block) if speech_prob else None
+
         if not started:
             pre_roll = (pre_roll + [block])[-PRE_ROLL_BLOCKS:]
-            if len(noise) >= 3 and level >= threshold:
+            is_speech = prob >= VAD_START if prob is not None else (len(noise) >= 3 and level >= threshold)
+            if is_speech:
                 started, kept = True, list(pre_roll)
             elif count >= no_speech_blocks:
                 break
             continue
 
         kept.append(block)
-        quiet = quiet + 1 if level < threshold else 0
+        is_pause = prob < VAD_END if prob is not None else level < threshold
+        quiet = quiet + 1 if is_pause else 0
         if quiet >= end_blocks:
             break
 
@@ -106,6 +119,66 @@ def collect_phrase(read_block, cancel=None, rms=_rms):
                            "volume in Windows Sound settings (or set HINA_MIC_DEVICE).")
         return None
     return kept
+
+
+class StreamingVad:
+    """
+    Speech probability for a live 16 kHz stream, block by block.
+
+    Wraps the Silero model bundled with faster-whisper but keeps its recurrent
+    state and audio context between blocks (faster-whisper's own wrapper resets
+    them on every call, which suits whole files, not a live mic).
+    """
+
+    CHUNK = 512    # samples per model step (32 ms)
+    CONTEXT = 64   # samples of the previous chunk the model also sees
+
+    def __init__(self, session=None):
+        if session is None:
+            from faster_whisper.vad import get_vad_model
+            session = get_vad_model().session
+        self.session = session
+        self.reset()
+
+    def reset(self):
+        import numpy as np
+        self._h = np.zeros((1, 1, 128), dtype="float32")
+        self._c = np.zeros((1, 1, 128), dtype="float32")
+        self._context = np.zeros(self.CONTEXT, dtype="float32")
+        self._pending = np.zeros(0, dtype="float32")
+
+    def __call__(self, block):
+        """Highest speech probability among the complete chunks in `block` (plus leftovers)."""
+        import numpy as np
+        audio = np.concatenate([self._pending, np.asarray(block, dtype="float32")])
+        best = 0.0
+        while len(audio) >= self.CHUNK:
+            chunk, audio = audio[:self.CHUNK], audio[self.CHUNK:]
+            frame = np.concatenate([self._context, chunk])[None, :]
+            out, self._h, self._c = self.session.run(None, {"input": frame, "h": self._h, "c": self._c})
+            best = max(best, float(np.asarray(out).reshape(-1)[0]))
+            self._context = chunk[-self.CONTEXT:]
+        self._pending = audio
+        return best
+
+
+_vad = {"model": None, "failed": False}
+
+
+def load_vad():
+    """A fresh StreamingVad, or None if it can't load (then loudness decides)."""
+    if _vad["failed"]:
+        return None
+    try:
+        if _vad["model"] is None:
+            _vad["model"] = StreamingVad()
+            logger.info("Voice activity detection: Silero VAD")
+        _vad["model"].reset()
+        return _vad["model"]
+    except Exception as exc:
+        _vad["failed"] = True
+        logger.warning("Silero VAD unavailable, using loudness to find speech: %s", exc)
+        return None
 
 
 def _resolve_device(sd, wanted=MIC_DEVICE):
@@ -130,6 +203,7 @@ def record_until_silence(cancel=None):
 
     block = int(SAMPLE_RATE * BLOCK_SECONDS)
     device = _resolve_device(sd)
+    vad = load_vad()
     try:
         with sd.InputStream(device=device, samplerate=SAMPLE_RATE, channels=1,
                             dtype="float32", blocksize=block) as stream:
@@ -137,6 +211,7 @@ def record_until_silence(cancel=None):
                 lambda: stream.read(block)[0][:, 0].copy(),
                 cancel,
                 rms=lambda b: float(np.sqrt(np.mean(b ** 2))),
+                speech_prob=vad,
             )
     except SttError:
         raise

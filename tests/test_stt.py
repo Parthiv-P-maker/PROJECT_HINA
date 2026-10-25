@@ -233,7 +233,7 @@ def test_speech_is_queued_in_order_and_one_at_a_time(monkeypatch):
     import voice
     spoken, overlap, active = [], [], [0]
 
-    def fake_utterance(text):
+    def fake_utterance(text, generation=None):
         active[0] += 1
         overlap.append(active[0])
         time.sleep(0.02)
@@ -322,3 +322,98 @@ def test_mic_ignored_while_busy(gui):
         assert not gui._listening
     finally:
         gui._set_busy(False)
+
+
+# --- 2.3 voice activity detection / 2.4 barge-in -----------------------------
+
+def _blocks(levels):
+    return iter([[lvl] * 10 for lvl in levels])
+
+
+def test_vad_decides_speech_even_when_it_is_quiet():
+    from core import stt
+    # loud room noise first (would fool loudness), then quiet "speech" the model recognises
+    probs = iter([0.1, 0.1, 0.1, 0.9, 0.9, 0.9] + [0.05] * 20)
+    blocks = _blocks([0.2, 0.2, 0.2, 0.01, 0.01, 0.01] + [0.2] * 20)
+    kept = stt.collect_phrase(lambda: next(blocks), speech_prob=lambda b: next(probs))
+    assert kept is not None
+    pause_blocks = int(stt.VAD_END_SILENCE_SECONDS / stt.BLOCK_SECONDS)
+    assert len(kept) == stt.PRE_ROLL_BLOCKS + 2 + pause_blocks
+
+
+def test_vad_hears_nothing_when_model_says_no_speech():
+    from core import stt
+    blocks = _blocks([0.3] * 200)
+    assert stt.collect_phrase(lambda: next(blocks), speech_prob=lambda b: 0.1) is None
+
+
+def test_streaming_vad_keeps_state_and_leftovers():
+    import numpy as np
+    from core.stt import StreamingVad
+
+    class Session:
+        def __init__(self):
+            self.frames = []
+
+        def run(self, _, feeds):
+            self.frames.append(feeds["input"].shape)
+            return np.array([[0.7]]), feeds["h"] + 1, feeds["c"]
+
+    session = Session()
+    vad = StreamingVad(session=session)
+    assert vad(np.zeros(1600, dtype="float32")) == 0.7   # 3 chunks of 512, 64 left over
+    assert len(session.frames) == 3 and session.frames[0] == (1, 512 + 64)
+    vad(np.zeros(1600, dtype="float32"))                  # 64 + 1600 = 1664 -> 3 more chunks
+    assert len(session.frames) == 6
+    assert float(vad._h[0, 0, 0]) == 6.0                  # recurrent state carried over
+
+
+def test_load_vad_falls_back_when_the_model_is_missing(monkeypatch):
+    from core import stt
+    monkeypatch.setattr(stt, "_vad", {"model": None, "failed": False})
+
+    def broken(*a, **k):
+        raise RuntimeError("no onnxruntime")
+
+    monkeypatch.setattr(stt, "StreamingVad", broken)
+    assert stt.load_vad() is None
+    assert stt.load_vad() is None  # and doesn't retry every time
+
+
+def test_stop_drops_queued_speech_and_cuts_the_current_one(monkeypatch):
+    import voice
+    monkeypatch.setattr(voice, "_HAS_EDGE_TTS", False)
+    started, gate, spoken = threading.Event(), threading.Event(), []
+
+    def slow_sync(text):
+        spoken.append(text)
+        started.set()
+        gate.wait(2)
+
+    monkeypatch.setattr(voice, "_speak_sync", slow_sync)
+    real_speak("first")
+    real_speak("second")
+    real_speak("third")
+    assert started.wait(2)
+    voice.stop()
+    gate.set()
+    end = time.time() + 2
+    while voice.is_speaking() and time.time() < end:
+        time.sleep(0.01)
+    assert spoken == ["first"]
+    assert not voice.is_speaking()
+    started.clear()
+    real_speak("after", blocking=True)  # speech still works after a stop
+    assert spoken == ["first", "after"]
+
+
+def test_new_command_and_mic_stop_speech(monkeypatch):
+    import voice
+    from core.command_router import route_command
+    from core.dispatcher import dispatch_command
+    stops = []
+    monkeypatch.setattr(voice, "stop", lambda: stops.append(1))
+    for text in ("stop", "be quiet", "shut up", "stop talking"):
+        assert route_command(text) == "stop talking", text
+    assert dispatch_command("stop talking").reply == ""
+    assert stops

@@ -167,6 +167,8 @@ def toggle_listening(event=None):
     if _busy:
         return
 
+    import voice
+    voice.stop()  # barge-in: stop talking so the mic can open at once
     _listening = True
     output_var.set("Listening... 🎤")
     _set_busy(True, _STATE_LABELS["listening"])
@@ -221,6 +223,8 @@ def execute_command(event=None):
 
 def _start_command(raw_command):
     """Shared by typed and spoken input: same router, same dispatcher."""
+    import voice
+    voice.stop()  # a new command makes the old reply moot
     output_var.set(f"> {raw_command}")
     _set_busy(True)
     threading.Thread(target=_run_command, args=(raw_command,), daemon=True).start()
@@ -473,6 +477,8 @@ entry.bind("<FocusOut>", ambient_manager.reset_timer)
 
 
 timers.set_notifier(lambda text: _results.put(_Notice(text)))
+from core import reminders  # noqa: E402
+reminders.start()
 app.after(50, _poll_results)
 
 
