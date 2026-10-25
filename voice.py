@@ -29,6 +29,46 @@ except Exception:
 
 VOICE = "en-US-AriaNeural"
 
+# Text mostly in another script is read by a native neural voice (edge-tts) instead of the
+# English one, e.g. a translation into Hindi or Malayalam. (first code point, last, voice)
+SCRIPT_VOICES = [
+    (0x0900, 0x097F, "hi-IN-SwaraNeural"),      # Devanagari
+    (0x0980, 0x09FF, "bn-IN-TanishaaNeural"),   # Bengali
+    (0x0B80, 0x0BFF, "ta-IN-PallaviNeural"),    # Tamil
+    (0x0C00, 0x0C7F, "te-IN-ShrutiNeural"),     # Telugu
+    (0x0C80, 0x0CFF, "kn-IN-SapnaNeural"),      # Kannada
+    (0x0D00, 0x0D7F, "ml-IN-SobhanaNeural"),    # Malayalam
+    (0x0600, 0x06FF, "ar-SA-ZariyahNeural"),    # Arabic
+    (0x0400, 0x04FF, "ru-RU-SvetlanaNeural"),   # Cyrillic
+    (0x0370, 0x03FF, "el-GR-AthinaNeural"),     # Greek
+    (0x0E00, 0x0E7F, "th-TH-PremwadeeNeural"),  # Thai
+    (0x3040, 0x30FF, "ja-JP-NanamiNeural"),     # Hiragana and Katakana
+    (0xAC00, 0xD7AF, "ko-KR-SunHiNeural"),      # Hangul
+    (0x4E00, 0x9FFF, "zh-CN-XiaoxiaoNeural"),   # Han (Japanese if any kana is present)
+]
+SCRIPT_SHARE = 0.3  # this share of the letters in one script switches the voice
+
+
+def voice_for(text, default=None):
+    """The edge-tts voice for `text`: the user's voice, unless most of it is in another script."""
+    default = default or VOICE
+    counts, letters = {}, 0
+    for ch in text or "":
+        if not ch.isalpha():
+            continue
+        letters += 1
+        code = ord(ch)
+        for low, high, name in SCRIPT_VOICES:
+            if low <= code <= high:
+                counts[name] = counts.get(name, 0) + 1
+                break
+    if not counts:
+        return default
+    name, n = max(counts.items(), key=lambda kv: kv[1])
+    if name == "zh-CN-XiaoxiaoNeural" and counts.get("ja-JP-NanamiNeural"):
+        name, n = "ja-JP-NanamiNeural", n + counts["ja-JP-NanamiNeural"]
+    return name if n / max(1, letters) >= SCRIPT_SHARE else default
+
 _speaking = 0
 _speaking_lock = threading.Lock()
 
@@ -81,7 +121,7 @@ async def _speak_async(text, generation):
     handle, filename = tempfile.mkstemp(prefix="hina_voice_", suffix=".mp3")
     os.close(handle)
     try:
-        communicate = edge_tts.Communicate(text, VOICE)
+        communicate = edge_tts.Communicate(text, voice_for(text))
         await communicate.save(filename)
 
         if _HAS_PYGAME and not _interrupted(generation):

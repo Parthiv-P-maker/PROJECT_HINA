@@ -65,4 +65,6 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    from utils.logger import enable_file_logging
+    enable_file_logging()
     sys.exit(main())
