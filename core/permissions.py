@@ -62,7 +62,8 @@ def _execute(action, target, run):
 def _question(action, target):
     verb = {"close_app": "close", "restart_app": "restart", "forget_facts": "forget",
             "shutdown": "shut down", "restart_computer": "restart", "sleep_computer": "put {} to sleep",
-            "clear_list": "clear"}.get(action, action.replace("_", " "))
+            "clear_list": "clear", "focus_mode": "close {} for focus mode",
+            "delete_mode": "delete the {} mode"}.get(action, action.replace("_", " "))
     what = verb.format(target) if "{}" in verb else f"{verb} {target}"
     return f"Should I {what}? (yes/no) 🌸".replace("  ", " ")
 

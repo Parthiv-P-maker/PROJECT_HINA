@@ -38,6 +38,8 @@ _stub_if_missing(
 # The reminder checker is a background thread the windows start; tests call reminders.check() directly.
 from core import reminders as _reminders  # noqa: E402
 _reminders._started.set()
+from utils import file_index as _file_index  # noqa: E402
+_file_index._started.set()  # no background disk scans in tests
 
 
 @pytest.fixture(autouse=True)
@@ -129,6 +131,25 @@ def isolate_machine(tmp_path, monkeypatch):
     monkeypatch.setattr(device, "cancel_shutdown", _record("cancel_shutdown", True))
     monkeypatch.setattr(device, "now_playing", lambda: "")
 
+    # 3c. No real windows, clipboard or disk scans (utils/windows.py, utils/clipboard.py, utils/file_index.py).
+    from utils import clipboard, file_index, windows
+    fake_windows = [windows.Win(101, "Inbox - Google Chrome", "chrome.exe"),
+                    windows.Win(102, "main.py - Visual Studio Code", "code.exe"),
+                    windows.Win(103, "Spotify Premium", "spotify.exe")]
+    window_calls = []
+    monkeypatch.setattr(windows, "list_windows", lambda: list(fake_windows))
+    for name in ("focus", "minimise", "maximise", "snap", "minimise_all"):
+        monkeypatch.setattr(windows, name, (lambda n: lambda *a: window_calls.append((n, a)))(name))
+    monkeypatch.setattr(windows, "running_processes", lambda: {"chrome.exe", "code.exe", "discord.exe"})
+    clip = {"text": ""}
+    monkeypatch.setattr(clipboard, "get_text", lambda: clip["text"])
+    monkeypatch.setattr(clipboard, "set_text", lambda text: clip.__setitem__("text", text) or True)
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    monkeypatch.setattr(file_index, "_roots", lambda: [files_root])
+    from utils import documents
+    documents.close()
+
     # 4. No browser windows.
     import webbrowser
     opened = []
@@ -152,7 +173,8 @@ def isolate_machine(tmp_path, monkeypatch):
     context_manager.recent_failures.clear()
 
     return types.SimpleNamespace(spoken=spoken, os_calls=os_calls, browser=opened, profile=profile,
-                                 device=device_calls, device_state=fake_state)
+                                 device=device_calls, device_state=fake_state, windows=window_calls,
+                                 clipboard=clip, files_root=files_root)
 
 
 @pytest.fixture

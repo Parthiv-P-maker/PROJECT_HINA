@@ -479,6 +479,8 @@ entry.bind("<FocusOut>", ambient_manager.reset_timer)
 timers.set_notifier(lambda text: _results.put(_Notice(text)))
 from core import reminders  # noqa: E402
 reminders.start()
+from utils import file_index  # noqa: E402
+file_index.start_background_refresh()
 app.after(50, _poll_results)
 
 

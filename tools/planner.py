@@ -112,7 +112,7 @@ _ADD = re.compile(r"^(?:add|put|write down|write) (.+?) (?:to|on|in|onto) " + _L
 _SHOW = re.compile(r"^(?:what(?:'s| is|s) (?:on|in) |show(?: me)? |read(?: me)? |check |open |tell me )" + _LIST_NAME + r"$")
 _REMOVE = re.compile(r"^(?:remove|delete|take|cross off|cross|tick off|tick|strike) (.+?) (?:from|off) " + _LIST_NAME + r"$")
 _CLEAR = re.compile(r"^(?:clear|empty|wipe|delete|reset) " + _LIST_NAME + r"$")
-_ALL_LISTS = {"what lists do i have", "show my lists", "my lists", "list my lists", "show lists",
+_ALL_LISTS = {"what lists do i have", "show my lists", "show me my lists", "what are my lists", "my lists", "list my lists", "show lists",
               "which lists do i have", "show all lists"}
 
 

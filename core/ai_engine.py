@@ -537,6 +537,33 @@ def chat_reply(text, context=None, history=(), summary="", facts=(), on_sentence
     return reply
 
 
+# =========================
+# ONE-OFF TEXT JOBS ("summarise what I copied", "fix the grammar", "explain this error")
+# =========================
+
+TASK_TIMEOUT = 90
+MAX_TASK_INPUT = 6000  # characters; a 3B model's context fills up fast
+
+
+def run_task(instruction, text, num_predict=400, allow_cjk=False):
+    """Run `instruction` (a system prompt) over `text`. Returns the model's answer, or None.
+
+    The input is data, not a conversation: no history, no tools. Long input is cut to
+    MAX_TASK_INPUT characters (callers say so if it matters).
+    """
+    payload = {
+        "model": chat_model(),
+        "messages": [{"role": "system", "content": instruction.strip()},
+                     {"role": "user", "content": (text or "")[:MAX_TASK_INPUT]}],
+        "options": {"temperature": 0.2, "num_predict": num_predict},
+    }
+    data = _send_ollama_request(payload, timeout=TASK_TIMEOUT, url=OLLAMA_CHAT_URL)
+    content = (((data or {}).get("message") or {}).get("content") or "").strip()
+    if not content or (not allow_cjk and contains_cjk(content)):
+        return None
+    return content
+
+
 def summarize_turns(previous_summary, turns):
     """Fold `turns` into the running summary. Returns the new summary, or None if unavailable."""
     if not turns:
