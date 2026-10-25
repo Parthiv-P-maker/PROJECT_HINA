@@ -82,6 +82,15 @@ class SettingsPanel(QWidget):
         self.whisper.addItems(settings_mod.WHISPER_MODELS)
         form.addRow("WHISPER MODEL", self.whisper)
 
+        self.wake_word = QCheckBox('Wake word: "Hey Hina"')
+        self.wake_word.setToolTip("Listen in the background for \"Hey Hina\". The mic stays on while Hina runs; "
+                                  "nothing is recorded or stored until the wake phrase is heard.")
+        form.addRow(self.wake_word)
+        self.follow_up = QCheckBox("Keep listening after a spoken reply")
+        self.follow_up.setToolTip("After answering something you said, Hina listens a few seconds more "
+                                  "so you can follow up without the hotkey.")
+        form.addRow(self.follow_up)
+
         self.toggle_hotkey = QLineEdit()
         form.addRow("SHOW / HIDE HOTKEY", self.toggle_hotkey)
         self.ptt_hotkey = QLineEdit()
@@ -173,6 +182,8 @@ class SettingsPanel(QWidget):
         self.local_only.setChecked(bool(s["local_only"]))
         self.tts_voice.setCurrentText(s["tts_voice"])
         self.whisper.setCurrentText(s["whisper_model"])
+        self.wake_word.setChecked(bool(s.get("wake_word")))
+        self.follow_up.setChecked(bool(s.get("follow_up", True)))
         self.toggle_hotkey.setText(s["toggle_hotkey"])
         self.ptt_hotkey.setText(s["ptt_hotkey"])
         self.opacity.blockSignals(True)
@@ -192,6 +203,8 @@ class SettingsPanel(QWidget):
             local_only=self.local_only.isChecked(),
             tts_voice=self.tts_voice.currentText().strip() or settings_mod.DEFAULTS["tts_voice"],
             whisper_model=self.whisper.currentText(),
+            wake_word=self.wake_word.isChecked(),
+            follow_up=self.follow_up.isChecked(),
             toggle_hotkey=self.toggle_hotkey.text().strip().lower() or "ctrl+h",
             ptt_hotkey=self.ptt_hotkey.text().strip().lower() or "ctrl+m",
             accent=self._accent,

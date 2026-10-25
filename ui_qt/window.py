@@ -42,6 +42,8 @@ STATE_CAPTIONS = {
     "thinking": "PROCESSING",
     "speaking": "SPEAKING",
 }
+FOLLOW_UP_SECONDS = 8       # how long the mic stays open for a follow-up (settings "follow_up_seconds")
+FOLLOW_UP_MAX_WAIT = 90     # give up waiting for a long reply to finish speaking after this
 VOICE_STATE_TEXT = {
     "waiting": "WAITING FOR AUDIO CHANNEL",
     "listening": "RECEIVING AUDIO",
@@ -107,6 +109,8 @@ class HinaWindow(QWidget):
         super().__init__(parent)
         self.settings = settings if settings is not None else settings_mod.load()
         self._streamed_speech = False
+        self._voice_turn = False      # the command being handled was spoken (follow-up listening applies)
+        self._follow_up_deadline = 0.0
         self.bridge = bridge or HinaBridge(self.settings)
         self.bridge.settings = self.settings
         self._speak = speak
@@ -149,7 +153,13 @@ class HinaWindow(QWidget):
         self._save_pos_timer = QTimer(self)
         self._save_pos_timer.setSingleShot(True)
         self._save_pos_timer.timeout.connect(self._save_position)
+        self._follow_up_timer = QTimer(self)
+        self._follow_up_timer.timeout.connect(self._follow_up_tick)
         QTimer.singleShot(200, self.check_ai)
+        if self.settings.get("wake_word"):
+            QTimer.singleShot(1500, lambda: self.set_wake_word(True, save=False, announce=False))
+        from core import wake
+        wake.set_controller(lambda on: self.bridge.call_soon.emit(0, lambda: self.set_wake_word(on)))
 
     # =================================================================
     # construction
@@ -299,6 +309,7 @@ class HinaWindow(QWidget):
         b.busy_changed.connect(lambda _: self.refresh_state())
         b.listening_changed.connect(self._on_listening_changed)
         b.mode_changed.connect(lambda m: self.status.mode.set(m, "active"))
+        b.wake_heard.connect(self._on_wake)
 
         self.hotkey_toggle.connect(self.toggle_visibility)
         self.hotkey_talk.connect(self._hotkey_talk)
@@ -320,6 +331,8 @@ class HinaWindow(QWidget):
         if not text or self.bridge.busy or self.bridge.listening:
             return False
         self.entry.clear()
+        self._voice_turn = False  # typed: no follow-up listening
+        self.cancel_follow_up()
         return self.start_command(text)
 
     def start_command(self, text):
@@ -375,6 +388,9 @@ class HinaWindow(QWidget):
             self.console.add_system("Awaiting confirmation.", "warn")
         if result.should_exit:
             QTimer.singleShot(result.exit_delay_ms or 1800, self.quit_app)
+        voice_turn, self._voice_turn = self._voice_turn, False
+        if voice_turn and result.reply and not result.should_exit and self.settings.get("follow_up", True):
+            self.schedule_follow_up()
         self.refresh_state()
 
     def _on_notice(self, text):
@@ -418,6 +434,7 @@ class HinaWindow(QWidget):
     # =================================================================
     def toggle_listening(self):
         self._touch()
+        self.cancel_follow_up()
         started = self.bridge.toggle_listening()
         if started:
             self.console.add_system("Audio channel open. Listening.")
@@ -431,7 +448,7 @@ class HinaWindow(QWidget):
 
     def _on_listening_changed(self, listening):
         self.mic_btn.setChecked(listening)
-        self.status.mic.set("LIVE" if listening else "READY", "active" if listening else "ok")
+        self.status.mic.set("LIVE" if listening else self._mic_idle_label(), "active" if listening else "ok")
         if not listening:
             self.voice_status = ""
             self.core.set_level(0.0)
@@ -442,18 +459,88 @@ class HinaWindow(QWidget):
         self.refresh_state()
 
     def _on_heard(self, heard):
+        follow_up = getattr(heard, "origin", "mic") == "follow_up"
         if heard.cancelled:
             self.console.add_system("Listening cancelled.")
         elif heard.error:
             self.console.add_system(heard.error, "error")
             self.status.mic.set("ERROR", "bad")
         elif not heard.text:
-            self.console.add_system("No speech detected. Try again.", "warn")
+            if follow_up:
+                self.console.add_system("Standing by.")  # nobody followed up: that's fine
+            else:
+                self.console.add_system("No speech detected. Try again.", "warn")
         elif is_exit_phrase(heard.text) and not self._pending_exit:
             self.ask_exit(heard.text)
         else:
+            self._voice_turn = True
             self.start_command(heard.text)
         self.refresh_state()
+
+    # ---- 2.2 wake word / 2.6 follow-up listening ----------------------
+    def set_wake_word(self, on, save=True, announce=True):
+        """Turn "Hey Hina" listening on or off (settings toggle, voice command, or startup)."""
+        on = bool(on)
+        if on:
+            self.bridge.start_wake()
+        else:
+            self.bridge.stop_wake()
+        if bool(self.settings.get("wake_word")) != on:
+            self.settings["wake_word"] = on
+            if save:
+                self.save_settings()
+        if not self.bridge.listening:
+            self.status.mic.set(self._mic_idle_label(), "ok")
+        if announce:
+            self.console.add_system('Wake word on. Say "Hey Hina" any time.' if on else "Wake word off.",
+                                    "ok" if on else "info")
+
+    def _mic_idle_label(self):
+        return "WAKE" if self.bridge.wake_running else "READY"
+
+    def _on_wake(self, command):
+        """'Hey Hina' was heard (runs on the GUI thread)."""
+        self._touch()
+        if not self.isVisible():
+            self.show_window()
+        if self.bridge.busy or self.bridge.listening:
+            return
+        self.cancel_follow_up()
+        self.console.add_system("Wake word heard.")
+        if command:
+            self._voice_turn = True
+            self.start_command(command)  # "Hey Hina, open Chrome": no second step needed
+        elif self.bridge.start_listening(origin="wake"):
+            self.console.add_system("Audio channel open. Listening.")
+        self.refresh_state()
+
+    def _speaking(self):
+        if self._speak is not None:  # an injected speaker (tests) never holds the mic shut
+            return False
+        try:
+            import voice
+            return voice.is_speaking()
+        except Exception:
+            return False
+
+    def schedule_follow_up(self):
+        """After a spoken exchange, open the mic again once Hina has finished talking."""
+        self._follow_up_deadline = time.time() + FOLLOW_UP_MAX_WAIT
+        self._follow_up_timer.start(150)
+
+    def cancel_follow_up(self):
+        self._follow_up_timer.stop()
+
+    def _follow_up_tick(self):
+        if self.bridge.busy or self.bridge.listening or time.time() > self._follow_up_deadline:
+            self.cancel_follow_up()
+            return
+        if self._speaking():
+            return
+        self.cancel_follow_up()
+        seconds = float(self.settings.get("follow_up_seconds") or FOLLOW_UP_SECONDS)
+        if self.bridge.start_listening(no_speech_timeout=seconds, origin="follow_up"):
+            self.console.add_system("Listening for a follow-up...")
 
     # =================================================================
     # state / status
@@ -572,7 +659,13 @@ class HinaWindow(QWidget):
                 and self._hotkey_handles:
             self.register_hotkeys()
         if old.get("whisper_model") != s.get("whisper_model") and not self.bridge.listening:
+            restart_wake = self.bridge.wake_running
+            self.bridge.stop_wake()
             self.bridge._speech = None  # rebuilt with the new model on next use
+            if restart_wake:
+                self.bridge.start_wake()
+        if bool(old.get("wake_word")) != bool(s.get("wake_word")):
+            self.set_wake_word(bool(s.get("wake_word")), save=False)
 
     def _on_settings_saved(self, s):
         s = dict(s, compact=self.compact, window_pos=self.settings.get("window_pos"))
@@ -709,8 +802,12 @@ class HinaWindow(QWidget):
         if self._quitting:
             return
         self._quitting = True
-        for timer in (self._state_timer, self._ambient_timer, self._ai_timer, self._save_pos_timer):
+        for timer in (self._state_timer, self._ambient_timer, self._ai_timer, self._save_pos_timer,
+                      self._follow_up_timer):
             timer.stop()
+        self.bridge.stop_wake()
+        from core import wake
+        wake.set_controller(None)
         self._save_position() if self.isVisible() else self.save_settings()
         self.unregister_hotkeys()
         if self.tray is not None:

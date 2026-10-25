@@ -65,19 +65,21 @@ def _rms(block):
     return (total / len(block)) ** 0.5 if len(block) else 0.0
 
 
-def collect_phrase(read_block, cancel=None, rms=_rms, speech_prob=None):
+def collect_phrase(read_block, cancel=None, rms=_rms, speech_prob=None, no_speech_timeout=None):
     """
     Pull fixed-size blocks from read_block() and keep the spoken phrase.
 
     With speech_prob(block) -> 0..1 (voice activity detection) a block is speech
     when the model says so; without it, when it is clearly louder than the room.
+    `no_speech_timeout` (seconds) overrides how long to wait for the first word
+    (follow-up listening waits longer than push-to-talk).
 
     Returns the list of kept blocks, or None if cancelled / nothing was said.
     Raises SttError when the input was silent the whole time (muted mic,
     zero input gain, wrong device), which is different from "you said nothing".
     """
     max_blocks = int(MAX_RECORD_SECONDS / BLOCK_SECONDS)
-    no_speech_blocks = int(NO_SPEECH_TIMEOUT / BLOCK_SECONDS)
+    no_speech_blocks = int((no_speech_timeout or NO_SPEECH_TIMEOUT) / BLOCK_SECONDS)
     end_blocks = int((VAD_END_SILENCE_SECONDS if speech_prob else END_SILENCE_SECONDS) / BLOCK_SECONDS)
 
     pre_roll, kept, noise = [], [], []
@@ -192,7 +194,7 @@ def _resolve_device(sd, wanted=MIC_DEVICE):
     raise SttError(f"I can't find a microphone matching '{wanted}' (HINA_MIC_DEVICE) 🎤")
 
 
-def record_until_silence(cancel=None):
+def record_until_silence(cancel=None, no_speech_timeout=None):
     """Record from the mic until the speaker pauses. Returns float32 mono samples
     normalised to a healthy level, or None if nothing was said / cancelled."""
     try:
@@ -212,6 +214,7 @@ def record_until_silence(cancel=None):
                 cancel,
                 rms=lambda b: float(np.sqrt(np.mean(b ** 2))),
                 speech_prob=vad,
+                no_speech_timeout=no_speech_timeout,
             )
     except SttError:
         raise
@@ -327,17 +330,19 @@ class WhisperTranscriber:
                 self._model = self._build(gpu=False)
         return self._model
 
-    def _transcribe(self, audio):
-        prompt = self.prompt() if callable(self.prompt) else self.prompt
+    def _transcribe(self, audio, prompt=None):
+        if prompt is None:
+            prompt = self.prompt() if callable(self.prompt) else self.prompt
         segments, _ = self._load().transcribe(
             audio, language="en", vad_filter=True, beam_size=5,
             initial_prompt=prompt, condition_on_previous_text=False,
         )
         return " ".join(s.text.strip() for s in segments).strip()
 
-    def __call__(self, audio):
+    def __call__(self, audio, prompt=None):
+        """Transcribe `audio`; `prompt` replaces the usual command-word prompt (the wake word uses its own)."""
         try:
-            return self._transcribe(audio)
+            return self._transcribe(audio, prompt)
         except SttError:
             raise
         except Exception as exc:
@@ -345,7 +350,7 @@ class WhisperTranscriber:
                 logger.warning("GPU transcription failed, retrying on CPU: %s", exc)
                 with self._lock:
                     self.use_gpu, self._model = False, None
-                return self(audio)
+                return self(audio, prompt)
             logger.warning("Transcription failed: %s", exc)
             raise SttError("I couldn't make out that audio 🌸") from exc
 
@@ -413,14 +418,17 @@ class SpeechInput:
         if announced:
             time.sleep(0.25)  # let the speaker tail off before the mic opens
 
-    def listen(self):
+    def listen(self, no_speech_timeout=None):
+        """Record one phrase and transcribe it. `no_speech_timeout` (seconds) is how long to wait
+        for the first word; the recorder must accept it as a keyword when it is given."""
         self.cancel.clear()
         self._wait_for_silence()
         if self.cancel.is_set():
             return ""
 
         self.on_state("listening")
-        audio = self.recorder(self.cancel)
+        extra = {"no_speech_timeout": no_speech_timeout} if no_speech_timeout else {}
+        audio = self.recorder(self.cancel, **extra)
         if audio is None or len(audio) == 0 or self.cancel.is_set():
             return ""
 

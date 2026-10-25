@@ -21,6 +21,9 @@ DEFAULTS = {
     "local_only": False,          # True: no cloud TTS (edge-tts) - offline pyttsx3 voice instead
     "tts_voice": "en-US-AriaNeural",
     "whisper_model": "auto",      # auto = small.en on GPU, base.en on CPU
+    "wake_word": False,           # listen for "Hey Hina" in the background (always-on mic: opt-in)
+    "follow_up": True,            # after a spoken reply, keep listening a few seconds for a follow-up
+    "follow_up_seconds": 8,
     "toggle_hotkey": "ctrl+h",
     "ptt_hotkey": "ctrl+m",
     "accent": "#00e5ff",
@@ -74,6 +77,7 @@ def _clean(data):
             out[key] = value
     out["opacity"] = min(1.0, max(0.3, float(out["opacity"])))
     out["ambient_minutes"] = max(0, int(out["ambient_minutes"]))
+    out["follow_up_seconds"] = min(30, max(3, int(out["follow_up_seconds"])))
     out["search_folders"] = [str(p) for p in out["search_folders"] if str(p).strip()]
     return out
 
