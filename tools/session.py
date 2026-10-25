@@ -42,3 +42,16 @@ def stop_speaking():
     import voice
     voice.stop()
     return DispatchResult()  # say nothing: that's the point
+
+
+_DOCTOR = {"run a self check", "run a self-check", "self check", "self-check", "run diagnostics",
+           "run a diagnostic", "system check", "run a system check", "check yourself", "diagnose yourself",
+           "are you working properly", "is everything working", "health check", "run a health check"}
+
+
+@tool("self_check", "Check Hina's setup (Ollama, models, microphone, packages) and report problems.",
+      command="self check", parse=lambda t: "self check" if t.strip().rstrip("?.! ") in _DOCTOR else None,
+      ai=True, priority=5)
+def self_check():
+    from core import doctor
+    return doctor.summary(doctor.run_checks())

@@ -33,7 +33,9 @@ def test_target_is_formatted_in(monkeypatch):
 
 def test_helpers():
     from utils.helpers import clean_text, try_parse_int
-    assert clean_text("Hello 🌸 world") == "Hello  world"
+    assert clean_text("Hello 🌸 world") == "Hello world"
+    assert clean_text("Café नमस्ते 👍🏽 ok") == "Café नमस्ते ok"  # other languages survive, emoji don't
+    assert clean_text("29°C ❤️‍🔥") == "29 degrees C"
     assert try_parse_int("12") == 12 and try_parse_int("x") is None and try_parse_int(None, 5) == 5
 
 

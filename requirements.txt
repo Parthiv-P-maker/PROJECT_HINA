@@ -11,3 +11,6 @@ faster-whisper>=1.2    # speech-to-text
 edge-tts>=7.2          # neural text-to-speech
 pygame>=2.6            # audio playback
 pyttsx3>=2.99          # offline speech fallback
+pywin32>=311           # clipboard, windows, Spotify title (win32clipboard / win32gui)
+comtypes>=1.4          # volume through Windows Core Audio
+PyMuPDF>=1.27          # reading PDFs for document questions

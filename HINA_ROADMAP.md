@@ -132,7 +132,8 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 | 5.6 | Proper installer (PyInstaller + Inno Setup), bundling `modes.json`, assets and first-run Ollama check/model pull | 🟡 | M | 0.7 |
 | 5.7 | Plugin system: drop a `.py` into `plugins/` and its `@tool`s auto-register | 🔵 | M | 1.1 |
 | 5.8 | Phone companion / remote control (small local web UI) | 🔵 | L | |
-| 5.9 | Logging to a rotating file plus crash reports; GitHub Actions CI running tests | 🟡 | S | 0.10 |
+| 5.9 | 🚧 Logging to a rotating file plus crash reports; GitHub Actions CI running tests *(log file done: `%APPDATA%\ProjectHina\logs\hina.log`, 1 MB x 3, with uncaught errors from any thread. GitHub Actions CI not done yet)* | 🟡 | S | 0.10 |
+| 5.10 | ✅ **Self-check:** `python hina.py --doctor` or "run a self-check" reports Python, packages, Ollama and models, mic, Whisper GPU/CPU, voice, Windows controls, data folder, memory, file index and settings, each with the exact fix *(done: `core/doctor.py`)* | 🟠 | S | 5.9 |
 
 ---
 
