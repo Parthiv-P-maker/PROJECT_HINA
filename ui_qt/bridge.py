@@ -9,6 +9,7 @@ dispatch_command are used, so the router/dispatcher can change underneath.
 
 import itertools
 import threading
+import time
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
@@ -25,8 +26,9 @@ FAILED_REPLY = "Something went wrong executing that command. Details are in the 
 class Heard:
     """Worker -> GUI: what the microphone made of the user's speech."""
 
-    def __init__(self, text="", error=None, cancelled=False):
+    def __init__(self, text="", error=None, cancelled=False, origin="mic"):
         self.text, self.error, self.cancelled = text, error, cancelled
+        self.origin = origin  # "mic" (button / hotkey), "wake" (after "Hey Hina") or "follow_up"
 
 
 # ---- shims for code written against the Tk window (voiced countdown) --------
@@ -86,6 +88,8 @@ class HinaBridge(QObject):
     busy_changed = Signal(bool)
     listening_changed = Signal(bool)
     mode_changed = Signal(str)
+    wake_heard = Signal(str)             # the wake phrase was said; the text is any command that followed it
+    wake_error = Signal(str)             # the wake listener hit a problem the user should know about
 
     def __init__(self, settings=None, speech=None, parent=None):
         super().__init__(parent)
@@ -94,6 +98,8 @@ class HinaBridge(QObject):
         self.listening = False
         self._speech = speech
         self._pending_mode = None
+        self._wake = None                # core.wake.WakeListener while the wake word is on
+        self._wake_quiet_until = 0.0
         self.var_shim, self.label_shim, self.app_shim = _VarShim(self), _LabelShim(), _AppShim(self)
         self.call_soon.connect(self._on_call_soon)
         conversation.set_stream_sink(self.speech_chunk.emit)  # sentences, as the model writes them
@@ -160,24 +166,29 @@ class HinaBridge(QObject):
         if self.listening:
             self.speech().cancel.set()
             return False
-        if self.busy:
+        return self.start_listening()
+
+    def start_listening(self, no_speech_timeout=None, origin="mic"):
+        """Open the mic for one command. False if already listening or busy."""
+        if self.listening or self.busy:
             return False
-        _barge_in()  # talking over Hina: she stops so the mic can open at once
+        if origin != "follow_up":
+            _barge_in()  # talking over Hina: she stops so the mic can open at once
         self._set_listening(True)
-        threading.Thread(target=self._run_listen, daemon=True).start()
+        threading.Thread(target=self._run_listen, args=(no_speech_timeout, origin), daemon=True).start()
         return True
 
-    def _run_listen(self):
+    def _run_listen(self, no_speech_timeout=None, origin="mic"):
         from core.stt import SttError
         try:
             speech = self.speech()
-            text = speech.listen()
-            self._heard_raw.emit(Heard(text=text, cancelled=speech.cancel.is_set()))
+            text = speech.listen(no_speech_timeout=no_speech_timeout)
+            self._heard_raw.emit(Heard(text=text, cancelled=speech.cancel.is_set(), origin=origin))
         except SttError as exc:
-            self._heard_raw.emit(Heard(error=str(exc)))
+            self._heard_raw.emit(Heard(error=str(exc), origin=origin))
         except Exception:
             logger.exception("Voice input failed")
-            self._heard_raw.emit(Heard(error="Voice input failed. Details are in the log."))
+            self._heard_raw.emit(Heard(error="Voice input failed. Details are in the log.", origin=origin))
         finally:
             self.mic_level.emit(0.0)
 
@@ -186,7 +197,7 @@ class HinaBridge(QObject):
         self._set_listening(False)
         self.heard.emit(heard)
 
-    def _metered_recorder(self, cancel=None):
+    def _metered_recorder(self, cancel=None, no_speech_timeout=None):
         """core.stt.record_until_silence, but reporting the live level for the HUD core."""
         from core import stt
         try:
@@ -206,7 +217,8 @@ class HinaBridge(QObject):
         try:
             with sd.InputStream(device=device, samplerate=stt.SAMPLE_RATE, channels=1,
                                 dtype="float32", blocksize=block) as stream:
-                kept = stt.collect_phrase(lambda: stream.read(block)[0][:, 0].copy(), cancel, rms=rms)
+                kept = stt.collect_phrase(lambda: stream.read(block)[0][:, 0].copy(), cancel, rms=rms,
+                                          speech_prob=stt.load_vad(), no_speech_timeout=no_speech_timeout)
         except stt.SttError:
             raise
         except Exception as exc:
@@ -215,6 +227,43 @@ class HinaBridge(QObject):
         if not kept:
             return None
         return stt.normalise(np.concatenate(kept))
+
+    # ---- wake word (core/wake.py) -----------------------------------
+    @property
+    def wake_running(self):
+        return self._wake is not None and self._wake.running
+
+    def start_wake(self, listener=None):
+        """Listen for the wake phrase in the background. `listener` replaces the real one in tests."""
+        if self.wake_running:
+            return True
+        if listener is None:
+            from core.wake import WakeListener
+            listener = WakeListener(on_wake=self._wake_fired, transcriber=self.speech().transcriber,
+                                    is_paused=self._wake_paused, phrase=self.settings.get("wake_phrase"),
+                                    on_error=self.wake_error.emit)
+        self._wake = listener
+        self._wake.start()
+        return True
+
+    def stop_wake(self):
+        if self._wake is not None:
+            self._wake.stop()
+        self._wake = None
+
+    def _wake_paused(self):
+        """Close the wake mic while the command mic is open, a command runs, or Hina is talking."""
+        if self.listening or self.busy or time.time() < self._wake_quiet_until:
+            return True
+        try:
+            import voice
+            return voice.is_speaking()
+        except Exception:
+            return False
+
+    def _wake_fired(self, command):
+        self._wake_quiet_until = time.time() + 1.5  # let the window open the command mic first
+        self.wake_heard.emit(command)
 
     # ---- helpers ----------------------------------------------------
     def _set_busy(self, busy):

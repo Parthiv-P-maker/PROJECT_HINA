@@ -75,11 +75,11 @@ PHASE 0  Stabilise ─────────────► PHASE 1  Real brai
 | ID | Task | Pri | Size | Depends on |
 |---|---|---|---|---|
 | **2.1** | ✅ **Push-to-talk speech input.** Hold a hotkey or click a mic button → record with `sounddevice` → transcribe with **`faster-whisper`** (already installed, `base.en` or `small.en` on your CUDA GPU) → same pipeline as typed text | 🔴 | M | 0.2 |
-| **2.2** | **Wake word "Hey Hina".** `openWakeWord` (free, local; can train a custom "Hina" model) or Porcupine. Always-on, low CPU, pops the window and starts listening | 🟠 | M | 2.1 |
-| 2.3 | ✅ **Voice activity detection** (Silero VAD) so it stops recording when you stop talking *(done: uses the Silero model bundled with faster-whisper, so there's no new package; loudness is the fallback)* | 🟠 | S | 2.1 |
+| **2.2** | ✅ **Wake word "Hey Hina".** `openWakeWord` (free, local; can train a custom "Hina" model) or Porcupine. Always-on, low CPU, pops the window and starts listening *(done: the default phrase is now "Hey Jarvis", because Whisper often misheard "Hina"; "Hey Hina" is still a setting (`wake_phrase`). No trained model: Silero VAD listens continuously and only stretches of speech go to Whisper, which `core/wake.py` checks for the phrase. "Hey Jarvis, open Chrome" runs the command directly, re-transcribed with the command vocabulary. Every check is logged. Off by default: turn on in settings or say "turn on wake word")* | 🟠 | M | 2.1 |
+| 2.3 | ✅ **Voice activity detection** (Silero VAD) so it stops recording when you stop talking *(done: uses the Silero model bundled with faster-whisper, so there's no new package; loudness is the fallback. Now also used by the Qt HUD's own recorder)* | 🟠 | S | 2.1 |
 | 2.4 | ✅ **Barge-in:** speaking or pressing the hotkey stops Hina mid-sentence *(done for the hotkey, mic button, a new command and "stop"/"be quiet". Talking over her is not done: an open mic would hear her own voice without echo cancellation)* | 🟡 | S | 0.8, 2.1 |
 | 2.5 | **Better TTS:** play Edge-TTS audio from memory (no temp file), sentence-by-sentence for streaming, and add an offline voice (Piper / Kokoro) for when there's no internet; let the user choose the voice | 🟡 | M | 0.8, 1.3 |
-| 2.6 | **Conversation mode:** after a reply, keep listening for about 8 s for a follow-up without the wake word | 🟡 | S | 2.2 |
+| 2.6 | ✅ **Conversation mode:** after a reply, keep listening for about 8 s for a follow-up without the wake word *(done: after a spoken exchange the HUD reopens the mic for 8 s (`follow_up_seconds`) once Hina stops talking, so you can answer a "Should I?" or keep going. Silence just ends it. Typed commands don't trigger it; toggle in settings)* | 🟡 | S | 2.2 |
 | 2.7 | Visual feedback: listening / thinking / speaking states on the status dot and petals | 🟡 | S | 2.1 |
 
 ---

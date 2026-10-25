@@ -53,6 +53,14 @@ def isolate_machine(tmp_path, monkeypatch):
     from core import conversation, permissions
     permissions.cancel_pending("test-reset")
     conversation.set_stream_sink(None)
+    from core import wake
+    wake.set_controller(None)  # a window from an earlier test must not receive voice toggles
+
+    def _no_mic(keep_going):
+        raise RuntimeError("no real microphone in tests")
+        yield  # pragma: no cover  (makes this a generator)
+
+    monkeypatch.setattr(wake, "_mic_blocks", _no_mic)
 
     from core import personality_engine
     monkeypatch.setattr(personality_engine, "CURRENT_PERSONALITY", None)  # reload from the temp profile

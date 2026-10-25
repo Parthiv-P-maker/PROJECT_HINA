@@ -35,7 +35,9 @@ def no_ai(monkeypatch):
 @pytest.fixture
 def window(qtbot, no_ai):
     from ui_qt.window import HinaWindow
-    w = HinaWindow(settings_mod.load(), tray=False, hotkeys=False)
+    s = settings_mod.load()
+    s["follow_up"] = False  # follow-up listening has its own tests (test_wake.py)
+    w = HinaWindow(s, tray=False, hotkeys=False)
     qtbot.addWidget(w)
     w.show()
     yield w
@@ -226,8 +228,10 @@ class _FakeSpeech:
         import threading
         self.cancel = threading.Event()
         self.text, self.error = text, error
+        self.timeouts = []
 
-    def listen(self):
+    def listen(self, no_speech_timeout=None):
+        self.timeouts.append(no_speech_timeout)
         time.sleep(0.1)
         if self.error:
             from core.stt import SttError
