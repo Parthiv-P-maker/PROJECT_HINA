@@ -43,8 +43,12 @@ def isolate_machine(tmp_path, monkeypatch):
 
     # 0. Action log / user data go to a temp dir; no pending confirmation leaks between tests.
     monkeypatch.setenv("HINA_DATA_DIR", str(tmp_path / "hina_data"))
-    from core import permissions
+    from core import conversation, permissions
     permissions.cancel_pending("test-reset")
+    conversation.set_stream_sink(None)
+
+    from core import personality_engine
+    monkeypatch.setattr(personality_engine, "CURRENT_PERSONALITY", None)  # reload from the temp profile
 
     # 1. Memory goes to a throwaway file.
     profile = tmp_path / "user_profile.json"
@@ -86,10 +90,19 @@ def isolate_machine(tmp_path, monkeypatch):
     opened = []
     monkeypatch.setattr(webbrowser, "open", lambda url, *a, **k: opened.append(url) or True)
 
-    # 5. Fresh AI + session state.
+    # 5. No network: a test that wants Ollama uses fake_ollama (or patches these itself).
     import core.ai_engine as ai_engine
+
+    def _no_network(*a, **k):
+        raise ai_engine.requests.ConnectionError("network disabled in tests")
+
+    monkeypatch.setattr(ai_engine.requests, "get", _no_network)
+    monkeypatch.setattr(ai_engine.requests, "post", _no_network)
+
+    # 6. Fresh AI + session state.
     ai_engine._health["checked_at"] = 0.0
     ai_engine._health["ok"] = False
+    ai_engine._health["models"] = None
     from core.context_manager import context_manager
     context_manager.recent_commands.clear()
     context_manager.recent_failures.clear()
@@ -113,8 +126,8 @@ def ollama_down(monkeypatch):
 @pytest.fixture
 def fake_ollama(monkeypatch):
     """
-    A scriptable Ollama. Set `.generate_reply` / `.tool_call` on the returned
-    object; every request is recorded in `.requests`.
+    A scriptable Ollama. Set `.generate_reply` / `.tool_call` / `.chat_reply` on
+    the returned object; every request is recorded in `.requests`.
     """
     import core.ai_engine as ai_engine
 
@@ -123,6 +136,7 @@ def fake_ollama(monkeypatch):
             self.requests = []
             self.generate_reply = "UNKNOWN"
             self.tool_call = None  # e.g. ("open_app", {"name": "chrome"})
+            self.chat_reply = "hi"  # /api/chat content when no tool is called
 
     fake = Fake()
 
@@ -136,11 +150,34 @@ def fake_ollama(monkeypatch):
         def json(self):
             return self._data
 
-    def post(url, json=None, timeout=None):
+    class _Stream:
+        """A streamed /api/chat answer: the reply in 4-character pieces, as NDJSON lines."""
+
+        def __init__(self, text):
+            self.text = text
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def raise_for_status(self):
+            pass
+
+        def iter_lines(self):
+            import json as _json
+            for i in range(0, len(self.text), 4):
+                yield _json.dumps({"message": {"content": self.text[i:i + 4]}, "done": False}).encode()
+            yield _json.dumps({"message": {"content": ""}, "done": True}).encode()
+
+    def post(url, json=None, timeout=None, stream=False):
         fake.requests.append((url, json))
+        if stream and url.endswith("/api/chat"):
+            return _Stream(fake.chat_reply)
         if url.endswith("/api/chat"):
             if fake.tool_call is None:
-                return _Resp({"message": {"content": "hi"}})
+                return _Resp({"message": {"content": fake.chat_reply}})
             name, args = fake.tool_call
             return _Resp({"message": {"tool_calls": [{"function": {"name": name, "arguments": args}}]}})
         return _Resp({"response": fake.generate_reply})

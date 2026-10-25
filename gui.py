@@ -4,6 +4,7 @@ import queue
 import threading
 
 from core.assistant import hina_reply
+from core import conversation, timers
 from core.ambient import AmbientThoughtManager
 from core.command_router import route_command
 from core.dispatcher import DispatchResult, dispatch_command
@@ -59,6 +60,13 @@ class _State:
         self.name = name
 
 
+class _Notice:
+    """Timer thread -> Tk thread: a timer went off."""
+
+    def __init__(self, text):
+        self.text = text
+
+
 def _speaking_now():
     import voice
     return voice.is_speaking()
@@ -103,6 +111,7 @@ def _finish_command(result):
 
 def _run_command(raw_command):
     """Runs in a worker thread so slow work (AI, file search) never freezes the window."""
+    command = None
     try:
         command = route_command(raw_command)
         result = dispatch_command(
@@ -114,6 +123,7 @@ def _run_command(raw_command):
     except Exception:
         logger.exception("Command failed: %s", raw_command)
         result = DispatchResult(reply="Something went wrong with that one 🌸")
+    conversation.record(raw_command, command, result.reply)
 
     # Hand the result to the Tk thread through a queue; Tk widgets and
     # after() must only be touched from the main thread.
@@ -175,6 +185,8 @@ def _hotkey_listen():
 def _handle_result(item):
     if isinstance(item, _Heard):
         _finish_listening(item)
+    elif isinstance(item, _Notice):
+        hina_reply(item.text, output_var, output_label, app)
     elif isinstance(item, _State):
         if _listening:
             sub_label.configure(text=_STATE_LABELS.get(item.name, item.name))
@@ -453,13 +465,14 @@ send_btn.pack(side="right")
 mic_btn.pack(side="right", padx=(0, 10))
 
 entry.bind("<Return>", execute_command)
-entry.bind("<FocusIn>", _on_entry_focus)
-entry.bind("<FocusOut>", _on_entry_blur)
+entry.bind("<FocusIn>", lambda event: _on_entry_focus(entry))
+entry.bind("<FocusOut>", lambda event: _on_entry_blur(entry))
 entry.bind("<KeyRelease>", ambient_manager.reset_timer)
 entry.bind("<FocusIn>", ambient_manager.reset_timer)
 entry.bind("<FocusOut>", ambient_manager.reset_timer)
 
 
+timers.set_notifier(lambda text: _results.put(_Notice(text)))
 app.after(50, _poll_results)
 
 

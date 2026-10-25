@@ -20,7 +20,7 @@ Hina is a working **Windows desktop companion** written in Python. It has a bord
 | Checked-out branch | `feature/ollama-tool-calling` (not merged into `main`) |
 | Most recently edited | `core/ai_engine.py` (18:44), `core/command_router.py` + `core/dispatcher.py` (18:30) today, so the tool-calling work looks active and probably uncommitted |
 | Language / runtime | Python 3.13 (from `__pycache__`), Windows only |
-| Entry points | `gui.py` (main app), `main.py` (old CLI loop) |
+| Entry points | `hina.py` (Qt HUD; `--classic` for `gui.py`) |
 | Packaging | PyInstaller `gui.spec` → `dist/gui/gui.exe` (~18 MB) |
 | Tests | None |
 
@@ -64,7 +64,7 @@ Hina is a working **Windows desktop companion** written in Python. It has a bord
 | **Memory** | `memory.py`, `memory/user_profile.json` | Name, recent apps/files, favourite apps |
 | **Voice out** | `voice.py` | Edge-TTS → mp3 → pygame; pyttsx3 fallback |
 | **Utilities** | `utils/helpers.py`, `utils/logger.py` | `clean_text`, `try_parse_int`, console logger |
-| **Legacy** | `main.py`, `personality.py` | Old CLI loop and old personality module, superseded by `gui.py` and `core/` |
+| **Legacy** | *(removed)* | `main.py` and `personality.py` were deleted in roadmap 0.9 |
 
 ---
 
@@ -130,7 +130,6 @@ Hina is a working **Windows desktop companion** written in Python. It has a bord
 ## 7. Code health and hygiene
 
 * **The command list is duplicated four times:** `parser.py`, `command_router.KNOWN_COMMAND_PREFIXES`, `ai_engine.KNOWN_NORMALIZED_COMMANDS` (already out of sync: it lacks search and mode) and the dispatcher `if` chain. `FILE_EXTENSIONS` is duplicated too.
-* **Legacy files** `main.py` and `personality.py` duplicate newer code.
 * **`requirements.txt` is a raw `pip freeze`** of a large environment: torch+CUDA, open3d, gsplat, dash, Flask, matplotlib, Jupyter, PyMuPDF and the `ollama` package (unused, since `requests` is used instead). A fresh install downloads several GB that Hina doesn't need. `pyinstaller` isn't listed.
 * **`build/` and `dist/` (~18 MB exe each) aren't in `.gitignore`** and look like they're committed.
 * **README is behind the code.** It omits Ollama, tool-calling, modes and web search, lists an `assets/` folder that doesn't exist, and has a placeholder clone URL.

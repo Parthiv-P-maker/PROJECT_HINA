@@ -1,7 +1,7 @@
 from collections import deque
 from datetime import datetime
 
-from core.personality_engine import CURRENT_PERSONALITY
+from core.personality_engine import get_personality
 from memory import get_name, get_recent_apps
 
 
@@ -26,7 +26,7 @@ class ContextManager:
             "recent_commands": list(self.recent_commands),
             "recent_failures": list(self.recent_failures),
             "time_of_day": self._time_of_day(),
-            "personality": CURRENT_PERSONALITY,
+            "personality": get_personality(),
             "emotional_tone": self._emotional_tone(),
         }
 

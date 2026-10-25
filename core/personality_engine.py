@@ -1,7 +1,9 @@
 import random
 
+import memory
 
-CURRENT_PERSONALITY = "calm"
+DEFAULT_PERSONALITY = "calm"
+CURRENT_PERSONALITY = None  # loaded from the saved profile on first use
 
 
 PERSONALITIES = {
@@ -60,10 +62,58 @@ PERSONALITIES = {
 }
 
 
+# How each personality talks in chat mode (appended to the chat system prompt).
+# "calm" is the base Jarvis-style prompt, so it adds nothing.
+CHAT_STYLES = {
+    "calm": "",
+    "tsundere": ("Persona: you are tsundere. You are brusque and a little prickly, you pretend "
+                 "not to care, and you still help properly. Never be cruel."),
+}
+
+SWITCH_REPLIES = {
+    "calm": "Understood. Back to calm 🌸",
+    "tsundere": "Fine, I'll be tsundere. Not that I wanted to change for you or anything 💢",
+}
+
+
+def personalities():
+    return sorted(PERSONALITIES)
+
+
+def get_personality():
+    """The active personality; the saved one on first use, "calm" if none or unknown."""
+    global CURRENT_PERSONALITY
+    if CURRENT_PERSONALITY is None:
+        try:
+            saved = memory.get_personality()
+        except Exception:
+            saved = None
+        CURRENT_PERSONALITY = saved if saved in PERSONALITIES else DEFAULT_PERSONALITY
+    return CURRENT_PERSONALITY
+
+
+def set_personality(name):
+    """Switch (and save) the personality. False if there is no such personality."""
+    global CURRENT_PERSONALITY
+    name = (name or "").strip().lower()
+    if name not in PERSONALITIES:
+        return False
+    CURRENT_PERSONALITY = name
+    try:
+        memory.set_personality(name)
+    except Exception:
+        pass  # the switch still applies for this session
+    return True
+
+
+def chat_style(name=None):
+    return CHAT_STYLES.get(name or get_personality(), "")
+
+
 def generate_reply(action, target=""):
 
     personality_data = PERSONALITIES.get(
-        CURRENT_PERSONALITY,
+        get_personality(),
         PERSONALITIES["calm"]
     )
 

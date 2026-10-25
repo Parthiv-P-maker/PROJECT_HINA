@@ -3,8 +3,9 @@
 from PySide6.QtCore import QEasingCurve, QPoint, QPointF, QPropertyAnimation, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
-    QCheckBox, QColorDialog, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QFormLayout, QHBoxLayout, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QPlainTextEdit, QPushButton, QScrollArea, QSlider,
+    QSpinBox, QVBoxLayout, QWidget,
 )
 
 from ui_qt import settings as settings_mod
@@ -16,6 +17,7 @@ class SettingsPanel(QWidget):
     saved = Signal(dict)
     preview = Signal(dict)     # live accent/opacity preview while editing
     closed = Signal()
+    memory_changed = Signal(str)   # facts deleted / history cleared (acts at once, not on SAVE)
 
     WIDTH = 330
 
@@ -64,7 +66,7 @@ class SettingsPanel(QWidget):
 
         self.ai_model = QComboBox()
         self.ai_model.setEditable(True)
-        self.ai_model.addItems(["qwen2.5:3b", "qwen2.5:7b", "llama3.2:3b", "phi3:mini"])
+        self.ai_model.addItems(settings_mod.SUGGESTED_MODELS)
         form.addRow("AI MODEL (OLLAMA)", self.ai_model)
 
         self.local_only = QCheckBox("Local only (offline voice)")
@@ -125,6 +127,33 @@ class SettingsPanel(QWidget):
         self.folders.setFixedHeight(70)
         form.addRow("EXTRA SEARCH FOLDERS", self.folders)
 
+        # ---- memory (core/memory_store.py) ----
+        mem_title = QLabel("MEMORY")
+        mem_title.setObjectName("Caption")
+        form.addRow(mem_title)
+        self.private_mode = QCheckBox("Private mode (don't record history or facts)")
+        form.addRow(self.private_mode)
+        self.facts = QListWidget()
+        self.facts.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.facts.setFixedHeight(96)
+        self.facts.setWordWrap(True)
+        form.addRow("REMEMBERED FACTS", self.facts)
+        mem_buttons = QHBoxLayout()
+        self.delete_fact_btn = QPushButton("DELETE FACT")
+        self.delete_fact_btn.setToolTip("Forget the selected facts")
+        self.delete_fact_btn.clicked.connect(self.delete_selected_facts)
+        self.clear_history_btn = QPushButton("CLEAR HISTORY")
+        self.clear_history_btn.setToolTip("Delete the stored conversation history (click twice)")
+        self.clear_history_btn.clicked.connect(self.clear_history)
+        mem_buttons.addWidget(self.delete_fact_btn)
+        mem_buttons.addWidget(self.clear_history_btn)
+        mem_buttons.addStretch(1)
+        form.addRow(mem_buttons)
+        self.memory_info = QLabel("")
+        self.memory_info.setObjectName("Dim")
+        self._confirm_clear = False
+        form.addRow(self.memory_info)
+
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         self.cancel_btn = QPushButton("CANCEL")
@@ -140,7 +169,7 @@ class SettingsPanel(QWidget):
     def load_values(self, settings):
         self.settings = dict(settings)
         s = self.settings
-        self.ai_model.setCurrentText(s["ai_model"])
+        self._fill_models(s["ai_model"])
         self.local_only.setChecked(bool(s["local_only"]))
         self.tts_voice.setCurrentText(s["tts_voice"])
         self.whisper.setCurrentText(s["whisper_model"])
@@ -152,12 +181,14 @@ class SettingsPanel(QWidget):
         self.on_top.setChecked(bool(s["always_on_top"]))
         self.ambient.setValue(int(s["ambient_minutes"]))
         self.folders.setPlainText("\n".join(s["search_folders"]))
+        self.private_mode.setChecked(bool(s.get("private_mode")))
         self._accent = s["accent"]
+        self.refresh_memory()
 
     def values(self):
         out = dict(self.settings)
         out.update(
-            ai_model=self.ai_model.currentText().strip() or settings_mod.DEFAULTS["ai_model"],
+            ai_model=self.model_name(),
             local_only=self.local_only.isChecked(),
             tts_voice=self.tts_voice.currentText().strip() or settings_mod.DEFAULTS["tts_voice"],
             whisper_model=self.whisper.currentText(),
@@ -168,8 +199,80 @@ class SettingsPanel(QWidget):
             always_on_top=self.on_top.isChecked(),
             ambient_minutes=self.ambient.value(),
             search_folders=[ln.strip() for ln in self.folders.toPlainText().splitlines() if ln.strip()],
+            private_mode=self.private_mode.isChecked(),
         )
         return out
+
+    # ---- memory -----------------------------------------------------
+    def refresh_memory(self):
+        from core import memory_store
+        from tools.recall import display
+        self._confirm_clear = False
+        self.clear_history_btn.setText("CLEAR HISTORY")
+        self.facts.clear()
+        try:
+            facts, turns = memory_store.list_facts(), memory_store.turn_count()
+        except Exception as exc:
+            self.memory_info.setText(f"Memory unavailable: {exc}")
+            return
+        for fact in facts:
+            item = QListWidgetItem(display(fact["text"]))
+            item.setData(Qt.UserRole, fact["id"])
+            item.setToolTip(f"{fact['created']} ({fact['source']})")
+            self.facts.addItem(item)
+        self.memory_info.setText(f"{len(facts)} facts, {turns} exchanges stored")
+
+    def delete_selected_facts(self):
+        from core import memory_store
+        ids = [item.data(Qt.UserRole) for item in self.facts.selectedItems()]
+        if not ids:
+            return 0
+        memory_store.delete_facts(ids)
+        self.refresh_memory()
+        self.memory_changed.emit(f"Forgot {len(ids)} fact{'s' if len(ids) != 1 else ''}.")
+        return len(ids)
+
+    def clear_history(self):
+        """First click arms it, second click clears."""
+        if not self._confirm_clear:
+            self._confirm_clear = True
+            self.clear_history_btn.setText("CONFIRM CLEAR")
+            return False
+        from core import memory_store
+        memory_store.clear_history()
+        self.refresh_memory()
+        self.memory_changed.emit("Conversation history cleared.")
+        return True
+
+    NOT_INSTALLED = " (not installed)"
+
+    def _fill_models(self, current):
+        """Installed models first; suggestions Ollama doesn't have are marked (they'd answer 404)."""
+        installed = []
+        try:
+            import core.ai_engine as ai_engine
+            installed = ai_engine.installed_models()
+        except Exception:
+            pass
+        items = list(installed) or list(settings_mod.SUGGESTED_MODELS)
+        if installed:
+            items += [m + self.NOT_INSTALLED for m in settings_mod.SUGGESTED_MODELS if m not in installed]
+        self.ai_model.clear()
+        self.ai_model.addItems(items)
+        self.ai_model.setToolTip("Installed in Ollama: " + (", ".join(installed) or "unknown (is Ollama running?)"))
+        at = self.ai_model.findText(current)
+        if at < 0:
+            at = self.ai_model.findText(current + self.NOT_INSTALLED)
+        if at >= 0:
+            self.ai_model.setCurrentIndex(at)
+        else:
+            self.ai_model.setEditText(current)
+
+    def model_name(self):
+        name = self.ai_model.currentText().strip()
+        if name.endswith(self.NOT_INSTALLED):
+            name = name[:-len(self.NOT_INSTALLED)].strip()
+        return name or settings_mod.DEFAULTS["ai_model"]
 
     def _set_accent(self, hex_):
         self._accent = hex_

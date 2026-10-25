@@ -35,3 +35,7 @@ to the model, `aliases`, `triggers` (substrings), `exact_triggers`, `starts`, or
 
 `tests/test_registry.py` fails if a registered tool is missing from the schema, router or
 dispatcher. Parse order matters (first match wins): see the `priority` values in the modules.
+
+Input that no tool claims (and that Ollama's tool calling doesn't turn into a call) is
+routed as `chat::<text>` to the `chat` tool in `recall.py`, which answers it as a
+conversation (`core/conversation.py`).

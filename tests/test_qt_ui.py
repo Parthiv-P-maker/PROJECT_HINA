@@ -456,3 +456,102 @@ def test_ambient_thought_after_idle(window):
     window.settings["ambient_minutes"] = 0
     window.last_ambient = 0
     assert not window._ambient_tick()
+
+
+# ---- memory v2: history + memory settings -------------------------------------
+
+def test_commands_are_recorded_and_restored_on_next_start(window, qtbot):
+    from core import memory_store
+    from ui_qt.window import HinaWindow
+    submit(qtbot, window, "tell time")
+    wait_idle(qtbot, window)
+    submit(qtbot, window, "blorp the flarn")
+    wait_idle(qtbot, window)
+    turns = memory_store.recent_turns()
+    assert [(t["user"], t["kind"]) for t in turns] == [("tell time", "command"), ("blorp the flarn", "chat")]
+    assert "time is" in turns[0]["reply"].lower()
+
+    w2 = HinaWindow(settings_mod.load(), tray=False, hotkeys=False)
+    qtbot.addWidget(w2)
+    assert w2.load_history() == 2
+    text = w2.console.plain_text()
+    assert "YOU   tell time" in text and "YOU   blorp the flarn" in text
+    assert "Restored 2 earlier exchanges" in text
+    w2.quit_app()
+
+
+def test_private_mode_setting_stops_recording(window, qtbot):
+    from core import memory_store
+    window.toggle_settings()
+    window.settings_panel.private_mode.setChecked(True)
+    qtbot.mouseClick(window.settings_panel.save_btn, Qt.LeftButton)
+    assert settings_mod.load()["private_mode"] is True
+    assert "Private mode on" in window.console.plain_text()
+    submit(qtbot, window, "tell time")
+    wait_idle(qtbot, window)
+    assert memory_store.turn_count() == 0
+
+
+def test_settings_memory_section_deletes_facts_and_clears_history(window, qtbot):
+    from core import memory_store
+    memory_store.add_fact("i like jazz")
+    memory_store.add_fact("i like tea")
+    memory_store.record_turn("hello", "Good evening.")
+    window.toggle_settings()
+    panel = window.settings_panel
+    assert [panel.facts.item(i).text() for i in range(panel.facts.count())] == ["I like jazz", "I like tea"]
+    assert "2 facts, 1 exchanges" in panel.memory_info.text()
+    panel.facts.item(0).setSelected(True)
+    qtbot.mouseClick(panel.delete_fact_btn, Qt.LeftButton)
+    assert [f["text"] for f in memory_store.list_facts()] == ["i like tea"]
+    assert "Forgot 1 fact." in window.console.plain_text()
+    qtbot.mouseClick(panel.clear_history_btn, Qt.LeftButton)
+    assert memory_store.turn_count() == 1, "first click only arms it"
+    qtbot.mouseClick(panel.clear_history_btn, Qt.LeftButton)
+    assert memory_store.turn_count() == 0
+    assert "history cleared" in window.console.plain_text()
+
+
+def test_missing_model_shows_in_status_and_console(window, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "missing_model", lambda: "qwen2.5:7b")
+    window._on_ai_status(False)
+    window._on_ai_status(False)
+    text = window.console.plain_text()
+    assert "qwen2.5:7b isn't installed" in text and text.count("isn't installed") == 1
+
+
+def test_model_list_marks_models_ollama_does_not_have(window, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "installed_models", lambda: ["qwen2.5:3b", "mistral:7b"])
+    window.toggle_settings()
+    combo = window.settings_panel.ai_model
+    items = [combo.itemText(i) for i in range(combo.count())]
+    assert items[:2] == ["qwen2.5:3b", "mistral:7b"]
+    assert "qwen2.5:7b (not installed)" in items and "qwen2.5:3b (not installed)" not in items
+    combo.setCurrentIndex(items.index("qwen2.5:7b (not installed)"))
+    assert window.settings_panel.values()["ai_model"] == "qwen2.5:7b"
+
+
+def test_saved_model_shows_in_the_list_and_unknown_names_are_kept(window, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "installed_models", lambda: ["qwen2.5:3b"])
+    window.settings_panel._fill_models("qwen2.5:7b")
+    assert window.settings_panel.ai_model.currentText() == "qwen2.5:7b (not installed)"
+    window.settings_panel._fill_models("my-custom:1b")
+    assert window.settings_panel.model_name() == "my-custom:1b"
+
+
+def test_changing_the_model_rechecks_the_ai_straight_away(window, qtbot, monkeypatch):
+    import core.ai_engine as ai_engine
+    monkeypatch.setattr(ai_engine, "MODEL", ai_engine.MODEL)
+    checks = []
+    monkeypatch.setattr(window, "check_ai", lambda: checks.append(ai_engine.MODEL))
+    window._reported_missing_model = "qwen2.5:7b"
+    window.toggle_settings()
+    window.settings_panel.ai_model.setEditText("llama3.2:3b")
+    qtbot.mouseClick(window.settings_panel.save_btn, Qt.LeftButton)
+    assert checks == ["llama3.2:3b"]
+    assert "AI model set to llama3.2:3b" in window.console.plain_text()
+    window._on_ai_status(True)
+    assert "AI model online" not in window.console.plain_text()  # the old warning was reset on save

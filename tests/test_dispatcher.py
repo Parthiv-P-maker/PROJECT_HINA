@@ -96,14 +96,15 @@ class TestMemoryCommands:
 
 
 class TestTimersCalc:
-    def test_timer_valid_and_invalid(self, machine, monkeypatch):
-        import actions
-        monkeypatch.setattr(actions.time, "sleep", lambda s: None)
+    def test_timer_valid_and_invalid(self, machine):
         assert "Timer set for 10" in reply("timer 10")
         assert "valid number" in reply("timer abc")
+        reply("cancel timer")
 
     def test_cancel_timer(self):
+        reply("timer 10")
         assert "cancelled" in reply("cancel timer")
+        assert "No timer" in reply("cancel timer")
 
     def test_calculate_ok_and_hostile(self):
         assert "300" in reply("calculate 25*12")
