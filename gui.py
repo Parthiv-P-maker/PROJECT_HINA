@@ -1,3 +1,11 @@
+"""
+The classic customtkinter window (python hina.py --classic).
+
+Frozen: it keeps working (commands, chat, push-to-talk, timers, reminders) but gets no
+new features. Voice features added after Phase 2.1 (wake word, follow-up listening,
+streamed speech, barge-in by voice) are only in the Qt HUD (ui_qt/).
+"""
+
 import customtkinter as ctk
 import keyboard
 import queue

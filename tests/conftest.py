@@ -77,6 +77,14 @@ def isolate_machine(tmp_path, monkeypatch):
         module = sys.modules.get(module_name)
         if module is not None:
             monkeypatch.setattr(module, "speak", fake_speak, raising=False)
+    # ...and no voice engine reaches the network, the sound card or a voice model.
+    def _no_online_voice(text):
+        raise ConnectionError("no online voice in tests")
+
+    monkeypatch.setattr(voice, "_edge_audio", _no_online_voice)
+    monkeypatch.setattr(voice, "_piper_audio", lambda text: None)
+    monkeypatch.setattr(voice, "_play", lambda audio, hint, generation: None)
+    monkeypatch.setattr(voice, "_edge_down_until", 0.0)
 
     # 3. No real launching / killing / opening files.
     import subprocess

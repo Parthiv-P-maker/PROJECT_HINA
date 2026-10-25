@@ -70,7 +70,8 @@ class SettingsPanel(QWidget):
         form.addRow("AI MODEL (OLLAMA)", self.ai_model)
 
         self.local_only = QCheckBox("Local only (offline voice)")
-        self.local_only.setToolTip("Use the offline pyttsx3 voice instead of cloud edge-tts")
+        self.local_only.setToolTip("Never use the online voice: speak with the offline neural voice (Piper) "
+                                   "if it's installed, else the Windows voice")
         form.addRow(self.local_only)
 
         self.tts_voice = QComboBox()
@@ -90,6 +91,10 @@ class SettingsPanel(QWidget):
         for key, text in settings_mod.WAKE_PHRASES:
             self.wake_phrase.addItem(text, key)
         form.addRow("WAKE PHRASE", self.wake_phrase)
+        self.voice_barge_in = QCheckBox("Wake phrase interrupts Hina while she talks")
+        self.voice_barge_in.setToolTip("Say the wake phrase over her to stop her and give a new command. "
+                                       "Works best with headphones.")
+        form.addRow(self.voice_barge_in)
         self.follow_up = QCheckBox("Keep listening after a spoken reply")
         self.follow_up.setToolTip("After answering something you said, Hina listens a few seconds more "
                                   "so you can follow up without the hotkey.")
@@ -190,6 +195,7 @@ class SettingsPanel(QWidget):
         at = self.wake_phrase.findData(s.get("wake_phrase") or "jarvis")
         self.wake_phrase.setCurrentIndex(max(0, at))
         self.follow_up.setChecked(bool(s.get("follow_up", True)))
+        self.voice_barge_in.setChecked(bool(s.get("voice_barge_in", True)))
         self.toggle_hotkey.setText(s["toggle_hotkey"])
         self.ptt_hotkey.setText(s["ptt_hotkey"])
         self.opacity.blockSignals(True)
@@ -212,6 +218,7 @@ class SettingsPanel(QWidget):
             wake_word=self.wake_word.isChecked(),
             wake_phrase=self.wake_phrase.currentData() or "jarvis",
             follow_up=self.follow_up.isChecked(),
+            voice_barge_in=self.voice_barge_in.isChecked(),
             toggle_hotkey=self.toggle_hotkey.text().strip().lower() or "ctrl+h",
             ptt_hotkey=self.ptt_hotkey.text().strip().lower() or "ctrl+m",
             accent=self._accent,

@@ -1,8 +1,21 @@
+"""
+Hina's voice. One speaker thread speaks queued sentences in order, trying:
+
+  1. the neural voice (edge-tts, online), synthesised into memory and played by pygame;
+     after a failure it is skipped for a few minutes instead of on every sentence;
+  2. the offline neural voice (Piper), if piper-tts and a voice model are installed;
+  3. the robotic Windows voice (pyttsx3).
+
+"Local only" in settings skips 1. stop() cuts off whatever is playing (barge-in).
+"""
+
 import asyncio
+import io
 import os
 import queue
-import tempfile
 import threading
+import time
+import wave
 
 from utils.helpers import clean_text
 from utils.logger import get_logger
@@ -116,30 +129,95 @@ def _mark(delta):
         _speaking += delta
 
 
-async def _speak_async(text, generation):
-    # A unique file per utterance: nothing else can overwrite or delete it mid-play.
-    handle, filename = tempfile.mkstemp(prefix="hina_voice_", suffix=".mp3")
-    os.close(handle)
+# ---- engines ---------------------------------------------------------------------------
+
+EDGE_RETRY_SECONDS = 300           # after a failure, skip the online voice for this long
+_edge_down_until = 0.0
+
+# Piper (offline neural voice): settings "offline_voice", models in <data dir>/voices
+PIPER_VOICE = "en_US-amy-medium"
+_piper = {"voice": None, "name": None, "failed": None}
+_piper_lock = threading.Lock()
+
+
+def piper_model_path(name=None):
+    from utils.paths import user_data_dir
+    return os.path.join(user_data_dir(), "voices", (name or PIPER_VOICE) + ".onnx")
+
+
+def piper_available(name=None):
+    """piper-tts is installed and the voice model has been downloaded."""
     try:
-        communicate = edge_tts.Communicate(text, voice_for(text))
-        await communicate.save(filename)
+        import importlib.util
+        if importlib.util.find_spec("piper") is None:
+            return False
+    except (ImportError, ValueError):
+        return False
+    return os.path.isfile(piper_model_path(name))
 
-        if _HAS_PYGAME and not _interrupted(generation):
-            pygame.mixer.music.load(filename)
-            pygame.mixer.music.play()
 
-            while pygame.mixer.music.get_busy():
-                if _interrupted(generation):
-                    pygame.mixer.music.stop()
-                    break
-                await asyncio.sleep(0.05)
-
-            pygame.mixer.music.unload()
-    finally:
+def _piper_voice():
+    """The loaded Piper voice (loaded once; about 2 s), or None."""
+    name = PIPER_VOICE
+    with _piper_lock:
+        if _piper["voice"] is not None and _piper["name"] == name:
+            return _piper["voice"]
+        if _piper["failed"] == name or not piper_available(name):
+            return None
         try:
-            os.remove(filename)
-        except Exception:
-            pass
+            from piper import PiperVoice
+            _piper.update(voice=PiperVoice.load(piper_model_path(name)), name=name, failed=None)
+            logger.info("Offline voice %s loaded", name)
+            return _piper["voice"]
+        except Exception as exc:
+            logger.warning("Couldn't load the offline voice %s: %s", name, exc)
+            _piper.update(voice=None, name=None, failed=name)
+            return None
+
+
+def warm_up_offline_voice():
+    """Load Piper in the background so the first offline sentence isn't slow."""
+    if piper_available():
+        threading.Thread(target=_piper_voice, name="hina-voice-warmup", daemon=True).start()
+
+
+def _play(audio, hint, generation):
+    """Play WAV/MP3 bytes; returns early if stop() is called."""
+    if _interrupted(generation):
+        return
+    pygame.mixer.music.load(io.BytesIO(audio), hint)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        if _interrupted(generation):
+            pygame.mixer.music.stop()
+            break
+        time.sleep(0.05)
+    pygame.mixer.music.unload()
+
+
+def _edge_audio(text):
+    """MP3 bytes of `text` from the online neural voice."""
+    async def collect():
+        out = bytearray()
+        async for chunk in edge_tts.Communicate(text, voice_for(text)).stream():
+            if chunk["type"] == "audio":
+                out += chunk["data"]
+        return bytes(out)
+    audio = asyncio.run(collect())
+    if not audio:
+        raise RuntimeError("the neural voice returned no audio")
+    return audio
+
+
+def _piper_audio(text):
+    """WAV bytes of `text` from the offline neural voice, or None if it isn't available."""
+    voice = _piper_voice()
+    if voice is None:
+        return None
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wav:
+        voice.synthesize_wav(text, wav)
+    return buf.getvalue()
 
 
 def _speak_sync(text):
@@ -162,19 +240,28 @@ def _speak_sync(text):
 
 def _speak_thread(text, generation=None):
     """Speak one utterance to completion (the caller has already _mark(1)'d)."""
+    global _edge_down_until
     generation = _generation if generation is None else generation
     try:
         if _interrupted(generation):
             return  # stop() was called after this was queued
         clean = clean_text(text)
-        if _HAS_EDGE_TTS and _HAS_PYGAME:
+        if _HAS_EDGE_TTS and _HAS_PYGAME and time.time() >= _edge_down_until:
             try:
-                asyncio.run(_speak_async(clean, generation))
+                _play(_edge_audio(clean), "mp3", generation)
                 return
             except Exception as e:
-                logger.warning("edge_tts failed: %s", e)
-
-        # Fall back to pyttsx3
+                _edge_down_until = time.time() + EDGE_RETRY_SECONDS
+                logger.warning("Neural voice failed (%s); using the offline voice for %d min",
+                               e, EDGE_RETRY_SECONDS // 60)
+        if _HAS_PYGAME:
+            try:
+                audio = _piper_audio(clean)
+                if audio is not None:
+                    _play(audio, "wav", generation)
+                    return
+            except Exception as e:
+                logger.warning("Offline voice failed: %s", e)
         _speak_sync(clean)
     except Exception as e:
         logger.error("Speech synthesis failed: %s", e)

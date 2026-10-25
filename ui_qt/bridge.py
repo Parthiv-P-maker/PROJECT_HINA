@@ -64,6 +64,14 @@ class _AppShim:
         pass
 
 
+def _hina_speaking():
+    try:
+        import voice
+        return voice.is_speaking()
+    except Exception:
+        return False
+
+
 def _barge_in():
     try:
         import voice
@@ -252,17 +260,22 @@ class HinaBridge(QObject):
         self._wake = None
 
     def _wake_paused(self):
-        """Close the wake mic while the command mic is open, a command runs, or Hina is talking."""
+        """Close the wake mic while the command mic is open or a command runs.
+
+        While Hina talks it stays open when "voice_barge_in" is on (the default), so the wake
+        phrase interrupts her. It hears her own voice too, but she'd have to start a sentence
+        with the wake phrase to trigger it. With the setting off it closes while she talks.
+        """
         if self.listening or self.busy or time.time() < self._wake_quiet_until:
             return True
-        try:
-            import voice
-            return voice.is_speaking()
-        except Exception:
+        if self.settings.get("voice_barge_in", True):
             return False
+        return _hina_speaking()
 
     def _wake_fired(self, command):
         self._wake_quiet_until = time.time() + 1.5  # let the window open the command mic first
+        if _hina_speaking():
+            _barge_in()  # "Jarvis, ..." while she talks: she stops at once
         self.wake_heard.emit(command)
 
     # ---- helpers ----------------------------------------------------

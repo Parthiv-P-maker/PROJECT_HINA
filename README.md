@@ -241,17 +241,14 @@ python hina.py
 `python hina.py --classic` (or `python gui.py`) starts the old customtkinter window,
 which stays as a fallback. `hina.py` also falls back to it if PySide6 isn't installed.
 
-### Classic GUI Mode
-
-```bash
-python gui.py
-```
-
-### Classic window
+### Classic window (frozen)
 
 ```bash
 python hina.py --classic
 ```
+
+The original customtkinter window still works but gets no new features: the wake word,
+follow-up listening, streamed speech and voice barge-in are only in the HUD.
 
 ---
 
