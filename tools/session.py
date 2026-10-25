@@ -33,3 +33,12 @@ def confirm_no():
       command="ai_reply::", router=False, prompt=False, priority=90)
 def ai_reply(ctx):
     return ask_or_reply(ctx.arg)
+
+
+@tool("stop_speaking", "Stop talking right now.", command="stop talking",
+      exact_triggers=("stop", "stop talking", "stop speaking", "be quiet", "quiet", "shut up",
+                      "silence", "hush", "enough"), priority=5)
+def stop_speaking():
+    import voice
+    voice.stop()
+    return DispatchResult()  # say nothing: that's the point

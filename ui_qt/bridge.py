@@ -62,6 +62,14 @@ class _AppShim:
         pass
 
 
+def _barge_in():
+    try:
+        import voice
+        voice.stop()
+    except Exception:
+        logger.exception("Couldn't stop speech")
+
+
 class HinaBridge(QObject):
     # Public signals fire on the GUI thread *after* busy/listening are updated,
     # so a receiver always sees a consistent state.
@@ -99,6 +107,7 @@ class HinaBridge(QObject):
         raw_command = (raw_command or "").strip()
         if not raw_command or self.busy or self.listening:
             return False
+        _barge_in()  # a new command makes the old reply moot
         self._set_busy(True)
         threading.Thread(target=self._run_command, args=(raw_command,), daemon=True).start()
         return True
@@ -153,6 +162,7 @@ class HinaBridge(QObject):
             return False
         if self.busy:
             return False
+        _barge_in()  # talking over Hina: she stops so the mic can open at once
         self._set_listening(True)
         threading.Thread(target=self._run_listen, daemon=True).start()
         return True

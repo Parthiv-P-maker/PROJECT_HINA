@@ -51,7 +51,7 @@ def test_every_tool_is_routable_and_dispatchable(entry, machine):
 @pytest.mark.parametrize("entry", [t for t in TOOLS if t.router], ids=lambda t: t.name)
 def test_known_commands_never_fall_through_to_the_unknown_reply(entry, machine):
     result = dispatch_command(_sample(entry))
-    assert result.reply or entry.name == "countdown"
+    assert result.reply or entry.name in {"countdown", "stop_speaking"}  # silent on purpose
     assert "don't know that one" not in result.reply
 
 
