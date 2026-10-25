@@ -61,9 +61,11 @@ def test_tier_comes_from_the_registry(entry):
 
 
 def test_confirm_tier_tools_ask_before_acting(machine):
+    from core import memory_store
+    memory_store.add_list_item("notepad", "something")  # clearing an empty list has nothing to ask about
     for entry in TOOLS:
         if entry.tier == registry.CONFIRM:
-            result = dispatch_command(entry.command + "notepad")
+            result = dispatch_command(entry.command + "notepad" if entry.takes_arg else entry.command)
             assert result.needs_confirmation, entry.name
             permissions.cancel_pending()
 

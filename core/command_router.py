@@ -15,7 +15,7 @@ def _is_known_command(normalized_command):
 
 
 # Commands whose argument is stored as typed: put back the capitals lowercasing removed.
-_KEEP_CASE = ("set name ", "remember fact ")
+_KEEP_CASE = ("set name ", "remember fact ", "remind me ")
 
 
 def _restore_case(raw_command, normalized):

@@ -36,6 +36,14 @@ def set_notifier(fn):
     _notifier = fn or _default_notifier
 
 
+def notify(message):
+    """Tell the user something unprompted (a timer or reminder going off), through the notifier."""
+    try:
+        _notifier(message)
+    except Exception:
+        logger.exception("Notifier failed")
+
+
 def _describe(seconds):
     if seconds % 60 == 0 and seconds >= 60:
         minutes = seconds // 60
@@ -48,10 +56,7 @@ def _run(timer_id, seconds, cancelled):
     with _lock:
         _active.pop(timer_id, None)
     if fired:
-        try:
-            _notifier(f"Your {_describe(seconds)} timer is up ⏰🌸")
-        except Exception:
-            logger.exception("Timer notifier failed")
+        notify(f"Your {_describe(seconds)} timer is up ⏰🌸")
 
 
 def start(seconds):

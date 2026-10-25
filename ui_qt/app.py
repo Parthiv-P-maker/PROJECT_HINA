@@ -56,6 +56,8 @@ def main(argv=None):
     if settings.get("show_on_start", True) or "--show" in argv:
         window.show_window()
     boot(window, name)
+    from core import reminders
+    reminders.start()  # after the window exists, so missed reminders have somewhere to show
     logger.info("Qt HUD started")
     return app.exec()
 

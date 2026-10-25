@@ -5,6 +5,8 @@ Hina's long-term memory in SQLite (stdlib sqlite3), in the user data dir
   turns    every exchange: user text, Hina's reply, time, "command" or "chat"
   summary  one rolling summary of turns too old for the AI prompt
   facts    things the user asked Hina to remember ("remember that ...")
+  reminders  "remind me at 6 to call mom" (core/reminders.py)
+  list_items "add milk to my shopping list" (tools/planner.py)
 
 Each call opens its own short-lived connection, so any thread may use it.
 Private mode (settings.json "private_mode") stops turns and facts being written;
@@ -44,6 +46,19 @@ CREATE TABLE IF NOT EXISTS facts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     text TEXT NOT NULL,
     source TEXT NOT NULL,
+    created TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    due TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created TEXT NOT NULL,
+    fired INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS list_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    list TEXT NOT NULL,
+    text TEXT NOT NULL,
     created TEXT NOT NULL
 );
 """
@@ -221,3 +236,52 @@ def relevant_facts(text, limit=5, always_if_at_most=6):
     scored = [(len(wanted & keywords(f["text"])), f) for f in facts]
     hits = [f for score, f in sorted(scored, key=lambda s: (-s[0], -s[1]["id"])) if score]
     return hits[:limit]
+
+
+
+# =========================
+# REMINDERS AND LISTS (not affected by private mode: the user asked for them explicitly)
+# =========================
+
+def add_reminder(due, text):
+    return _write("INSERT INTO reminders (due, text, created) VALUES (?, ?, ?)",
+                  (due.isoformat(timespec="seconds"), text, _now()))
+
+
+def pending_reminders():
+    """Reminders that haven't gone off, soonest first."""
+    return _rows("SELECT * FROM reminders WHERE fired = 0 ORDER BY due, id")
+
+
+def mark_reminder_fired(reminder_id):
+    _write("UPDATE reminders SET fired = 1 WHERE id = ?", (reminder_id,))
+
+
+def delete_reminders(ids):
+    ids = list(ids)
+    if ids:
+        with _lock, closing(_connect()) as conn, conn:
+            conn.executemany("DELETE FROM reminders WHERE id = ?", [(i,) for i in ids])
+    return len(ids)
+
+
+def add_list_item(list_name, text):
+    return _write("INSERT INTO list_items (list, text, created) VALUES (?, ?, ?)", (list_name, text, _now()))
+
+
+def list_items(list_name):
+    return _rows("SELECT * FROM list_items WHERE list = ? ORDER BY id", (list_name,))
+
+
+def list_names():
+    """[(list name, item count)], biggest first."""
+    rows = _rows("SELECT list, COUNT(*) AS n FROM list_items GROUP BY list ORDER BY n DESC, list")
+    return [(r["list"], r["n"]) for r in rows]
+
+
+def delete_list_items(ids):
+    ids = list(ids)
+    if ids:
+        with _lock, closing(_connect()) as conn, conn:
+            conn.executemany("DELETE FROM list_items WHERE id = ?", [(i,) for i in ids])
+    return len(ids)
